@@ -568,10 +568,30 @@ function aggregateRawClaims(rawRows) {
     
     rawRows.forEach(r => {
         const keys = Object.keys(r);
-        const dateKey = keys.find(k => k.includes('วันที่') || k.toLowerCase().includes('date'));
-        const projectKey = keys.find(k => k.toLowerCase().includes('project'));
-        const locKey = keys.find(k => k.toLowerCase().includes('location') || k.toLowerCase().includes('loc'));
-        const typeKey = keys.find(k => k.toLowerCase().includes('claim'));
+        
+        // Robust Date Key matching
+        const dateKey = keys.find(k => {
+            const low = k.toLowerCase().trim();
+            return low.includes('วันที่') || low.includes('date') || low.includes('time') || low.includes('วัน');
+        });
+        
+        // Robust Project Key matching
+        const projectKey = keys.find(k => {
+            const low = k.toLowerCase().trim();
+            return low.includes('project') || low.includes('proj');
+        });
+        
+        // Robust Location Key matching
+        const locKey = keys.find(k => {
+            const low = k.toLowerCase().trim();
+            return low.includes('location') || low.includes('loc') || low.includes('place') || low.includes('คลัง');
+        });
+        
+        // Robust Claim Type Key matching
+        const typeKey = keys.find(k => {
+            const low = k.toLowerCase().trim();
+            return low.includes('claim') || low.includes('type') || low.includes('ประเภท') || low.includes('อาการ');
+        });
         
         if (!dateKey) return;
         
@@ -584,7 +604,10 @@ function aggregateRawClaims(rawRows) {
         
         // Default quantity to 1 for raw row-by-row transactions. Respect custom Qty if present.
         let qty = 1;
-        const qtyKey = keys.find(k => k.toLowerCase().includes('qty') || k.toLowerCase().includes('quantity') || k.toLowerCase().includes('จำนวน'));
+        const qtyKey = keys.find(k => {
+            const low = k.toLowerCase().trim();
+            return low.includes('qty') || low.includes('quantity') || low.includes('จำนวน') || low.includes('vol') || low.includes('pcs');
+        });
         if (qtyKey && r[qtyKey]) {
             qty = Number(String(r[qtyKey]).replace(/,/g, '')) || 1;
         }
@@ -622,7 +645,10 @@ function processClaimsPaste() {
     
     if (parsed.length > 0) {
         const current = db.get('claims_data');
-        db.set('claims_data', [...current, ...parsed]);
+        const parsedDates = new Set(parsed.map(d => d.date));
+        const filteredCurrent = current.filter(d => !parsedDates.has(d.date));
+        
+        db.set('claims_data', [...filteredCurrent, ...parsed]);
         toast.success(`Success! Imported & aggregated ${parsed.length} Claims records.`);
         document.getElementById('paste-claims').value = '';
     } else {
@@ -662,7 +688,10 @@ function handleClaimsFileUpload() {
             
             if (parsed.length > 0) {
                 const current = db.get('claims_data');
-                db.set('claims_data', [...current, ...parsed]);
+                const parsedDates = new Set(parsed.map(d => d.date));
+                const filteredCurrent = current.filter(d => !parsedDates.has(d.date));
+                
+                db.set('claims_data', [...filteredCurrent, ...parsed]);
                 toast.success(`Success! Imported & aggregated ${parsed.length} Claims records from Excel.`);
                 fileInput.value = '';
             } else {

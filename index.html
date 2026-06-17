@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script>
+        // Force trailing slash for repository roots on GitHub Pages to prevent relative path 404s
+        if (!window.location.pathname.endsWith('/') && !window.location.pathname.includes('.')) {
+            window.location.replace(window.location.href + '/');
+        }
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BMW Quality Portal</title>
@@ -74,7 +80,7 @@
                 <div class="card" style="display: flex; flex-direction: column; justify-content: space-between;">
                     <div class="card-header" style="margin-bottom: 1rem;">
                         <h3 class="card-title">Operations Summary</h3>
-                        <span class="user-role" style="font-size: 0.85rem; background-color: var(--border-color); padding: 0.25rem 0.75rem; border-radius: 20px;">Latest Q2 2026</span>
+                        <span id="summary-period" class="user-role" style="font-size: 0.85rem; background-color: var(--border-color); padding: 0.25rem 0.75rem; border-radius: 20px;">Latest Data</span>
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; flex-grow: 1;">
                         <div style="background-color: var(--bg-primary); padding: 1.25rem; border-radius: 12px; display: flex; flex-direction: column; justify-content: center;">
@@ -150,44 +156,125 @@
         document.addEventListener('DOMContentLoaded', () => {
             injectLayout("Operations Dashboard");
             
-            // Calculate Home Page Summary Statistics
+            // Calculate Home Page Summary Statistics dynamically
             try {
-                // PPM Avg 2026
-                const ppmData = db.get('ppm_data').filter(d => d.date.startsWith('2026'));
-                if (ppmData.length > 0) {
-                    const totalDefect = ppmData.reduce((sum, d) => sum + Number(d.defect_qty), 0);
-                    const totalShipped = ppmData.reduce((sum, d) => sum + Number(d.shipped_qty), 0);
-                    const ppmAvg = ((totalDefect / totalShipped) * 1000000).toFixed(2);
-                    document.getElementById('summary-ppm').textContent = ppmAvg;
-                    document.getElementById('card-ppm-val').textContent = ppmAvg;
+                // 1. PPM Avg (Latest Year in Data)
+                const ppmDataAll = db.get('ppm_data') || [];
+                if (ppmDataAll.length > 0) {
+                    const years = ppmDataAll.map(d => {
+                        if (!d.date) return null;
+                        const y = parseInt(d.date.split('-')[0]);
+                        return isNaN(y) ? null : y;
+                    }).filter(y => y);
+                    const latestYear = years.length > 0 ? Math.max(...years) : 2026;
+                    const ppmData = ppmDataAll.filter(d => d.date && parseInt(d.date.split('-')[0]) === latestYear);
+                    if (ppmData.length > 0) {
+                        const totalDefect = ppmData.reduce((sum, d) => sum + Number(d.defect_qty), 0);
+                        const totalShipped = ppmData.reduce((sum, d) => sum + Number(d.shipped_qty), 0);
+                        const ppmAvg = totalShipped > 0 ? ((totalDefect / totalShipped) * 1000000).toFixed(2) : "0.00";
+                        document.getElementById('summary-ppm').textContent = parseFloat(ppmAvg).toLocaleString(undefined, {minimumFractionDigits: 2});
+                        document.getElementById('card-ppm-val').textContent = parseFloat(ppmAvg).toLocaleString(undefined, {minimumFractionDigits: 2});
+                        
+                        const labelEl = document.querySelector('.stat-card:nth-child(1) .stat-label');
+                        if (labelEl) labelEl.textContent = `PPM Avg (${latestYear})`;
+                        const subEl = document.querySelector('.stat-card:nth-child(1) .stat-change');
+                        if (subEl) subEl.innerHTML = `<i data-lucide="info"></i> Total shipped: ${totalShipped.toLocaleString()} pcs`;
+                    }
                 }
                 
-                // Yield FPY Avg 2026
-                const yieldData = db.get('yield_fpy_data').filter(d => d.date.startsWith('2026') && d.process === 'Layup');
-                if (yieldData.length > 0) {
-                    const avgFpy = (yieldData.reduce((sum, d) => sum + (d.ok / d.ins), 0) / yieldData.length * 100).toFixed(1);
-                    document.getElementById('summary-yield').textContent = `${avgFpy}%`;
-                    document.getElementById('card-yield-val').textContent = `${avgFpy}%`;
-                }
-
-                // Total WIP Latest (June 2026)
-                const wipData = db.get('wip_data').filter(d => d.date.startsWith('2026-06'));
-                if (wipData.length > 0) {
-                    const totalWip = wipData.reduce((sum, d) => sum + Number(d.total_wip), 0);
-                    document.getElementById('summary-wip').textContent = totalWip.toLocaleString();
-                    document.getElementById('card-wip-val').textContent = totalWip.toLocaleString();
-                }
-
-                // Avg Scrap Rate 2026
-                const scrapData = db.get('scrap_data').filter(d => d.date.startsWith('2026'));
-                if (scrapData.length > 0) {
-                    const okQty = scrapData.filter(d => d.process_status.endsWith(':OK')).reduce((sum, d) => sum + Number(d.qty), 0);
-                    const scrapQty = scrapData.filter(d => d.process_status.endsWith(':Scrap')).reduce((sum, d) => sum + Number(d.qty), 0);
-                    if (okQty + scrapQty > 0) {
-                        const scrapRate = ((scrapQty / (okQty + scrapQty)) * 100).toFixed(2);
-                        document.getElementById('summary-scrap').textContent = `${scrapRate}%`;
-                        document.getElementById('card-scrap-val').textContent = `${scrapRate}%`;
+                // 2. Yield FPY Avg (Latest Year in Data)
+                const yieldDataAll = db.get('yield_fpy_data') || [];
+                if (yieldDataAll.length > 0) {
+                    const yieldYears = yieldDataAll.map(d => {
+                        if (!d.date) return null;
+                        const p = d.date.split('-');
+                        return Number(p[0]);
+                    }).filter(y => y && !isNaN(y));
+                    const latestYieldYear = yieldYears.length > 0 ? Math.max(...yieldYears) : 2026;
+                    const yieldData = yieldDataAll.filter(d => d.date && d.date.startsWith(latestYieldYear.toString()));
+                    if (yieldData.length > 0) {
+                        const layupData = yieldData.filter(d => d.process.toLowerCase() === 'layup');
+                        const dataToUse = layupData.length > 0 ? layupData : yieldData;
+                        const processName = layupData.length > 0 ? 'Layup' : dataToUse[0].process;
+                        
+                        let sumFpy = 0, countFpy = 0;
+                        dataToUse.forEach(d => {
+                            if (d.yield !== undefined && d.yield !== null) {
+                                sumFpy += Number(d.yield);
+                                countFpy++;
+                            } else if (Number(d.ins) > 0) {
+                                sumFpy += (Number(d.ok) / Number(d.ins)) * 100;
+                                countFpy++;
+                            }
+                        });
+                        const avgFpy = countFpy > 0 ? (sumFpy / countFpy).toFixed(1) : "0.0";
+                        document.getElementById('summary-yield').textContent = `${avgFpy}%`;
+                        document.getElementById('card-yield-val').textContent = `${avgFpy}%`;
+                        
+                        const labelEl = document.querySelector('.stat-card:nth-child(2) .stat-label');
+                        if (labelEl) labelEl.textContent = `FPY Yield (${latestYieldYear} ${processName})`;
+                        const subEl = document.querySelector('.stat-card:nth-child(2) .stat-change');
+                        if (subEl) subEl.innerHTML = `<i data-lucide="info"></i> Average of ${countFpy} records`;
                     }
+                }
+
+                // 3. Total WIP Latest (Latest Month in Data)
+                const wipDataAll = db.get('wip_data') || [];
+                if (wipDataAll.length > 0) {
+                    const wipMonths = [...new Set(wipDataAll.map(d => d.date ? d.date.substring(0, 7) : ''))].filter(m => m).sort();
+                    const latestWipMonth = wipMonths.length > 0 ? wipMonths[wipMonths.length - 1] : '2026-06';
+                    const wipData = wipDataAll.filter(d => d.date && d.date.startsWith(latestWipMonth));
+                    if (wipData.length > 0) {
+                        const totalWip = wipData.reduce((sum, d) => sum + Number(d.total_wip), 0);
+                        document.getElementById('summary-wip').textContent = Math.round(totalWip).toLocaleString();
+                        document.getElementById('card-wip-val').textContent = Math.round(totalWip).toLocaleString();
+                        
+                        const [yr, mn] = latestWipMonth.split('-');
+                        const mNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                        const mName = mNames[parseInt(mn) - 1] || mn;
+                        
+                        const labelEl = document.querySelector('.stat-card:nth-child(3) .stat-label');
+                        if (labelEl) labelEl.textContent = `Active WIP (${mName} ${yr})`;
+                        const subEl = document.querySelector('.stat-card:nth-child(3) .stat-change');
+                        if (subEl) subEl.innerHTML = `<i data-lucide="info"></i> Sum of all models`;
+                        
+                        const summaryPeriodEl = document.getElementById('summary-period');
+                        if (summaryPeriodEl) summaryPeriodEl.textContent = `Latest: ${mName} ${yr}`;
+                    }
+                }
+
+                // 4. Avg Scrap Rate (Latest Year in Data)
+                const scrapDataAll = db.get('scrap_data') || [];
+                if (scrapDataAll.length > 0) {
+                    const scrapYears = scrapDataAll.map(d => {
+                        if (!d.date) return null;
+                        const y = parseInt(d.date.split('-')[0]);
+                        return isNaN(y) ? null : y;
+                    }).filter(y => y);
+                    const latestScrapYear = scrapYears.length > 0 ? Math.max(...scrapYears) : 2026;
+                    const scrapData = scrapDataAll.filter(d => {
+                        if (!d.date) return false;
+                        return parseInt(d.date.split('-')[0]) === latestScrapYear;
+                    });
+                    if (scrapData.length > 0) {
+                        const okQty = scrapData.filter(d => d.process_status.endsWith(':OK')).reduce((sum, d) => sum + Number(d.qty), 0);
+                        const scrapQty = scrapData.filter(d => d.process_status.endsWith(':Scrap')).reduce((sum, d) => sum + Number(d.qty), 0);
+                        if (okQty + scrapQty > 0) {
+                            const scrapRate = ((scrapQty / (okQty + scrapQty)) * 100).toFixed(2);
+                            document.getElementById('summary-scrap').textContent = `${scrapRate}%`;
+                            document.getElementById('card-scrap-val').textContent = `${scrapRate}%`;
+                            
+                            const labelEl = document.querySelector('.stat-card:nth-child(4) .stat-label');
+                            if (labelEl) labelEl.textContent = `Avg Scrap Rate (${latestScrapYear})`;
+                            const subEl = document.querySelector('.stat-card:nth-child(4) .stat-change');
+                            if (subEl) subEl.innerHTML = `<i data-lucide="info"></i> Total scrap: ${scrapQty.toLocaleString()} pcs`;
+                        }
+                    }
+                }
+                
+                // Initialize Lucide icons on updated sub-elements
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
                 }
             } catch (err) {
                 console.error("Error calculating summary: ", err);

@@ -2,20 +2,8 @@
 
 // Initialize LocalStorage database if empty or if schema reset is required
 function initDatabase() {
-    const hasOldTargets = localStorage.getItem('ppm_targets') && 
-                          (localStorage.getItem('ppm_targets').includes('G8X-013 Mirror L') || 
-                           localStorage.getItem('ppm_targets').includes('"target":15'));
-                           
-    const has2026Data = localStorage.getItem('ppm_data') && 
-                        localStorage.getItem('ppm_data').includes('2026-03-15');
-                           
-        const hasProjectInClaims = localStorage.getItem('claims_data') && 
-                               localStorage.getItem('claims_data').includes('"project":');
-    
-    const hasReworkWaitType = localStorage.getItem('rework_data') && 
-                              localStorage.getItem('rework_data').includes('Waiting');
-                            
-    if (!localStorage.getItem('bmw_db_initialized') || hasOldTargets || !has2026Data || !hasProjectInClaims || !hasReworkWaitType) {
+    const DB_VERSION = 'v5';
+    if (localStorage.getItem('bmw_db_initialized') !== DB_VERSION) {
         localStorage.clear(); // Safe clear since this is a demonstration local app
         
         localStorage.setItem('ppm_targets', JSON.stringify(MOCK_DATA.ppm_targets));
@@ -32,8 +20,8 @@ function initDatabase() {
         localStorage.setItem('scrap_daily', JSON.stringify(MOCK_DATA.scrap_daily));
         localStorage.setItem('scrap_inven', JSON.stringify(MOCK_DATA.scrap_inven));
         
-        localStorage.setItem('bmw_db_initialized', 'true');
-        console.log("Database initialized/reset with SMR/SMP seed data.");
+        localStorage.setItem('bmw_db_initialized', DB_VERSION);
+        console.log("Database initialized/reset with SMR/SMP seed data version " + DB_VERSION);
     }
     // Perform database health check, date repair, and deduplication
     cleanAndDeduplicateDB();
@@ -504,13 +492,14 @@ function getQuarterString(dateStr) {
     return `Q${q} ${date.getFullYear()}`;
 }
 
-// Helper: Normalize Excel Date serials or strings to YYYY-MM-DD
+// Helper: Normalize Excel Date serials or strings to YYYY-MM-DD (with BE to CE support)
 function normalizeDate(val) {
     if (!val) return '';
     
     // 1. If it's a JS Date object
     if (val instanceof Date || (typeof val === 'object' && typeof val.getMonth === 'function')) {
-        const y = val.getFullYear();
+        let y = val.getFullYear();
+        if (y > 2400) y -= 543;
         const m = String(val.getMonth() + 1).padStart(2, '0');
         const d = String(val.getDate()).padStart(2, '0');
         return `${y}-${m}-${d}`;
@@ -522,7 +511,11 @@ function normalizeDate(val) {
         const utcDays = Math.floor(num - 25569);
         const utcValue = utcDays * 86400;
         const dateObj = new Date(utcValue * 1000);
-        return dateObj.toISOString().split('T')[0];
+        let y = dateObj.getFullYear();
+        if (y > 2400) y -= 543;
+        const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const d = String(dateObj.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
     }
     
     // Clean string by splitting on whitespace to remove any time suffix
@@ -539,7 +532,8 @@ function normalizeDate(val) {
             
             if (part0.length === 4) {
                 // yyyy/mm/dd
-                const y = part0;
+                let y = parseInt(part0);
+                if (y > 2400) y -= 543;
                 const m = part1.padStart(2, '0');
                 const d = part2.padStart(2, '0');
                 return `${y}-${m}-${d}`;
@@ -547,9 +541,10 @@ function normalizeDate(val) {
                 // dd/mm/yyyy or d/m/yy
                 const d = part0.padStart(2, '0');
                 const m = part1.padStart(2, '0');
-                let y = part2;
-                if (y.length === 2) {
-                    y = '20' + y;
+                let y = parseInt(part2);
+                if (y > 2400) y -= 543;
+                else if (String(part2).length === 2) {
+                    y = 2000 + y;
                 }
                 return `${y}-${m}-${d}`;
             }
@@ -566,14 +561,17 @@ function normalizeDate(val) {
             
             if (part0.length === 4) {
                 // yyyy-mm-dd
-                return `${part0}-${part1.padStart(2, '0')}-${part2.padStart(2, '0')}`;
+                let y = parseInt(part0);
+                if (y > 2400) y -= 543;
+                return `${y}-${part1.padStart(2, '0')}-${part2.padStart(2, '0')}`;
             } else {
                 // dd-mm-yyyy or d-m-yy
                 const d = part0.padStart(2, '0');
                 const m = part1.padStart(2, '0');
-                let y = part2;
-                if (y.length === 2) {
-                    y = '20' + y;
+                let y = parseInt(part2);
+                if (y > 2400) y -= 543;
+                else if (String(part2).length === 2) {
+                    y = 2000 + y;
                 }
                 return `${y}-${m}-${d}`;
             }
@@ -583,7 +581,11 @@ function normalizeDate(val) {
     // Fallback: try standard Date parsing
     const date = new Date(dateStr);
     if (!isNaN(date.getTime())) {
-        return date.toISOString().split('T')[0];
+        let y = date.getFullYear();
+        if (y > 2400) y -= 543;
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
     }
     
     return dateStr;
