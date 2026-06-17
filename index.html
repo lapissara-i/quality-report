@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BMW Quality Portal</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Lucide Icons -->
+    <script src="https://cdn.jsdelivr.net/npm/lucide/dist/umd/lucide.min.js"></script>
+</head>
+<body>
+    <!-- Sidebar Container -->
+    <div id="sidebar-container"></div>
+
+    <!-- Main Wrapper -->
+    <div id="main-wrapper">
+        <!-- Header Container -->
+        <div id="header-container"></div>
+
+        <!-- Main Content -->
+        <main>
+            <div class="card" style="background: linear-gradient(135deg, var(--accent-blue) 0%, #004d88 100%); color: #ffffff; border: none; padding: 2.5rem; position: relative; overflow: hidden;">
+                <div style="position: relative; z-index: 2; max-width: 60%;">
+                    <h2 style="font-size: 2rem; margin-bottom: 0.5rem; font-family: 'Outfit', sans-serif;">BMW Quality Portal</h2>
+                    <p style="opacity: 0.9; font-size: 1rem; line-height: 1.6;">
+                        Welcome to the central operations dashboard. Upload, manage, and extract high-fidelity reports for PPM, Claims, FPY & FY Yield, Work in Process, Rework rates, and Scrap statistics.
+                    </p>
+                </div>
+                <div style="position: absolute; right: 2rem; top: 50%; transform: translateY(-50%); opacity: 0.15; z-index: 1;">
+                    <svg width="220" height="220" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="50" cy="50" r="46" fill="none" stroke="#ffffff" stroke-width="2" />
+                        <circle cx="50" cy="50" r="30" fill="none" stroke="#ffffff" stroke-width="2" />
+                        <path d="M 50,20 L 50,80 M 20,50 L 80,50" stroke="#ffffff" stroke-width="2" />
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Dashboard Big Logo & Status Overview -->
+            <div class="grid-2col" style="margin-bottom: 2rem; align-items: stretch;">
+                <div class="card" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 3rem 2rem;">
+                    <div class="dashboard-logo-container" style="background-color: var(--accent-blue-light); border-radius: 50%; width: 160px; height: 160px; display: flex; align-items: center; justify-content: center; margin-bottom: 1.5rem;">
+                        <!-- Large Circular Classic Logo -->
+                        <svg width="120" height="120" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                            <!-- Outer thick dark grey border -->
+                            <circle cx="50" cy="50" r="48" fill="#7f7f7f" />
+                            <!-- White inner ring -->
+                            <circle cx="50" cy="50" r="46" fill="#ffffff" />
+                            
+                            <!-- Outer border of inner core -->
+                            <circle cx="50" cy="50" r="30" fill="#7f7f7f" />
+                            <!-- Inner core (quadrants) -->
+                            <circle cx="50" cy="50" r="29" fill="#ffffff" />
+                            
+                            <!-- Quadrants (0 deg rotation) -->
+                            <!-- Top-left: Blue -->
+                            <path d="M 50,50 L 50,21 A 29,29 0 0,0 21,50 Z" fill="#0066b2" />
+                            <!-- Bottom-right: Blue -->
+                            <path d="M 50,50 L 50,79 A 29,29 0 0,0 79,50 Z" fill="#0066b2" />
+                            
+                            <!-- Separating lines inside inner core -->
+                            <line x1="50" y1="21" x2="50" y2="79" stroke="#7f7f7f" stroke-width="1.5" />
+                            <line x1="21" y1="50" x2="79" y2="50" stroke="#7f7f7f" stroke-width="1.5" />
+                            
+                            <!-- Text letters B M W curved along top -->
+                            <text x="50" y="15" font-family="'Outfit', 'Arial Black', sans-serif" font-weight="900" font-size="10" fill="#475569" text-anchor="middle">M</text>
+                            <text x="26" y="24" font-family="'Outfit', 'Arial Black', sans-serif" font-weight="900" font-size="10" fill="#475569" text-anchor="middle" transform="rotate(-38 26 24)">B</text>
+                            <text x="74" y="24" font-family="'Outfit', 'Arial Black', sans-serif" font-weight="900" font-size="10" fill="#475569" text-anchor="middle" transform="rotate(38 74 24)">W</text>
+                        </svg>
+                    </div>
+                    <h3 style="font-size: 1.5rem; margin-bottom: 0.5rem; font-family: 'Outfit', sans-serif;">Production & Quality Portal</h3>
+                    <p style="color: var(--text-secondary); max-width: 320px;">Official BMW Carbon Fiber Reinforcements Quality Tracking & Reporting System.</p>
+                </div>
+
+                <div class="card" style="display: flex; flex-direction: column; justify-content: space-between;">
+                    <div class="card-header" style="margin-bottom: 1rem;">
+                        <h3 class="card-title">Operations Summary</h3>
+                        <span class="user-role" style="font-size: 0.85rem; background-color: var(--border-color); padding: 0.25rem 0.75rem; border-radius: 20px;">Latest Q2 2026</span>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; flex-grow: 1;">
+                        <div style="background-color: var(--bg-primary); padding: 1.25rem; border-radius: 12px; display: flex; flex-direction: column; justify-content: center;">
+                            <span style="font-size: 0.8rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase;">PPM Avg</span>
+                            <span id="summary-ppm" style="font-size: 1.5rem; font-weight: 700; color: var(--accent-blue); font-family: 'Outfit', sans-serif;">0.00</span>
+                        </div>
+                        <div style="background-color: var(--bg-primary); padding: 1.25rem; border-radius: 12px; display: flex; flex-direction: column; justify-content: center;">
+                            <span style="font-size: 0.8rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase;">FPY Yield</span>
+                            <span id="summary-yield" style="font-size: 1.5rem; font-weight: 700; color: var(--color-success); font-family: 'Outfit', sans-serif;">0.0%</span>
+                        </div>
+                        <div style="background-color: var(--bg-primary); padding: 1.25rem; border-radius: 12px; display: flex; flex-direction: column; justify-content: center;">
+                            <span style="font-size: 0.8rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase;">Total WIP</span>
+                            <span id="summary-wip" style="font-size: 1.5rem; font-weight: 700; color: var(--color-warning); font-family: 'Outfit', sans-serif;">0</span>
+                        </div>
+                        <div style="background-color: var(--bg-primary); padding: 1.25rem; border-radius: 12px; display: flex; flex-direction: column; justify-content: center;">
+                            <span style="font-size: 0.8rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase;">Avg Scrap Rate</span>
+                            <span id="summary-scrap" style="font-size: 1.5rem; font-weight: 700; color: var(--color-danger); font-family: 'Outfit', sans-serif;">0.0%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Primary KPI Dashboard Cards -->
+            <div class="dashboard-grid">
+                <!-- PPM Stat Card -->
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <span class="stat-label">PPM (Parts Per Million)</span>
+                        <span id="card-ppm-val" class="stat-value">12.5</span>
+                        <span class="stat-change down"><i data-lucide="trending-down"></i> -8.2% vs last month</span>
+                    </div>
+                    <div class="stat-icon"><i data-lucide="bar-chart-3"></i></div>
+                </div>
+
+                <!-- Yield Card -->
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <span class="stat-label">First Part Yield (FPY)</span>
+                        <span id="card-yield-val" class="stat-value">92.8%</span>
+                        <span class="stat-change up"><i data-lucide="trending-up"></i> +1.5% vs last month</span>
+                    </div>
+                    <div class="stat-icon"><i data-lucide="gauge"></i></div>
+                </div>
+
+                <!-- WIP Card -->
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <span class="stat-label">Active WIP (LHD/RHD)</span>
+                        <span id="card-wip-val" class="stat-value">3,420</span>
+                        <span class="stat-change down"><i data-lucide="trending-down"></i> -1.2% reduction</span>
+                    </div>
+                    <div class="stat-icon"><i data-lucide="boxes"></i></div>
+                </div>
+
+                <!-- Scrap Card -->
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <span class="stat-label">Scrap Rate</span>
+                        <span id="card-scrap-val" class="stat-value">1.45%</span>
+                        <span class="stat-change up"><i data-lucide="trending-down"></i> -0.3% vs target</span>
+                    </div>
+                    <div class="stat-icon"><i data-lucide="trash-2"></i></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Common and Mock scripts -->
+    <script src="js/mock-data.js"></script>
+    <script src="js/common.js"></script>
+    <script>
+        // Inject Layout and Calculate Home Stats
+        document.addEventListener('DOMContentLoaded', () => {
+            injectLayout("Operations Dashboard");
+            
+            // Calculate Home Page Summary Statistics
+            try {
+                // PPM Avg 2026
+                const ppmData = db.get('ppm_data').filter(d => d.date.startsWith('2026'));
+                if (ppmData.length > 0) {
+                    const totalDefect = ppmData.reduce((sum, d) => sum + Number(d.defect_qty), 0);
+                    const totalShipped = ppmData.reduce((sum, d) => sum + Number(d.shipped_qty), 0);
+                    const ppmAvg = ((totalDefect / totalShipped) * 1000000).toFixed(2);
+                    document.getElementById('summary-ppm').textContent = ppmAvg;
+                    document.getElementById('card-ppm-val').textContent = ppmAvg;
+                }
+                
+                // Yield FPY Avg 2026
+                const yieldData = db.get('yield_fpy_data').filter(d => d.date.startsWith('2026') && d.process === 'Layup');
+                if (yieldData.length > 0) {
+                    const avgFpy = (yieldData.reduce((sum, d) => sum + (d.ok / d.ins), 0) / yieldData.length * 100).toFixed(1);
+                    document.getElementById('summary-yield').textContent = `${avgFpy}%`;
+                    document.getElementById('card-yield-val').textContent = `${avgFpy}%`;
+                }
+
+                // Total WIP Latest (June 2026)
+                const wipData = db.get('wip_data').filter(d => d.date.startsWith('2026-06'));
+                if (wipData.length > 0) {
+                    const totalWip = wipData.reduce((sum, d) => sum + Number(d.total_wip), 0);
+                    document.getElementById('summary-wip').textContent = totalWip.toLocaleString();
+                    document.getElementById('card-wip-val').textContent = totalWip.toLocaleString();
+                }
+
+                // Avg Scrap Rate 2026
+                const scrapData = db.get('scrap_data').filter(d => d.date.startsWith('2026'));
+                if (scrapData.length > 0) {
+                    const okQty = scrapData.filter(d => d.process_status.endsWith(':OK')).reduce((sum, d) => sum + Number(d.qty), 0);
+                    const scrapQty = scrapData.filter(d => d.process_status.endsWith(':Scrap')).reduce((sum, d) => sum + Number(d.qty), 0);
+                    if (okQty + scrapQty > 0) {
+                        const scrapRate = ((scrapQty / (okQty + scrapQty)) * 100).toFixed(2);
+                        document.getElementById('summary-scrap').textContent = `${scrapRate}%`;
+                        document.getElementById('card-scrap-val').textContent = `${scrapRate}%`;
+                    }
+                }
+            } catch (err) {
+                console.error("Error calculating summary: ", err);
+            }
+        });
+    </script>
+</body>
+</html>
