@@ -22,15 +22,28 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('upload-top-scrap-btn')) {
         document.getElementById('upload-top-scrap-btn').addEventListener('click', handleTopScrapFileUpload);
     }
+    if (document.getElementById('upload-quality-btn')) {
+        document.getElementById('upload-quality-btn').addEventListener('click', handleQualityFileUpload);
+    }
+    if (document.getElementById('upload-claim-motorrad-btn')) {
+        document.getElementById('upload-claim-motorrad-btn').addEventListener('click', handleClaimMotorradFileUpload);
+    }
     
     // Bind Paste Buttons
     document.getElementById('paste-yield-btn').addEventListener('click', processYieldPaste);
+    document.getElementById('paste-yield-targets-btn').addEventListener('click', processYieldTargetsPaste);
     document.getElementById('paste-ppm-btn').addEventListener('click', processPpmPaste);
     document.getElementById('paste-claims-btn').addEventListener('click', processClaimsPaste);
     document.getElementById('paste-wip-btn').addEventListener('click', processWipPaste);
     document.getElementById('paste-rework-btn').addEventListener('click', processReworkPaste);
     if (document.getElementById('paste-top-scrap-btn')) {
         document.getElementById('paste-top-scrap-btn').addEventListener('click', processTopScrapPaste);
+    }
+    if (document.getElementById('paste-quality-btn')) {
+        document.getElementById('paste-quality-btn').addEventListener('click', processQualityPaste);
+    }
+    if (document.getElementById('paste-claim-motorrad-btn')) {
+        document.getElementById('paste-claim-motorrad-btn').addEventListener('click', processClaimMotorradPaste);
     }
     
     // Bind Clear Buttons
@@ -74,6 +87,22 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
+    if (document.getElementById('clear-quality-btn')) {
+        document.getElementById('clear-quality-btn').addEventListener('click', () => {
+            showConfirmModal("Clear Quality Performance Data", "Are you sure you want to delete all Quality Performance data? This action is irreversible.", () => {
+                db.set('quality_data', []);
+                toast.success("Quality Performance data cleared successfully!");
+            });
+        });
+    }
+    if (document.getElementById('clear-claim-motorrad-btn')) {
+        document.getElementById('clear-claim-motorrad-btn').addEventListener('click', () => {
+            showConfirmModal("Clear Claim Motorrad Data", "Are you sure you want to delete all Claim Motorrad data? This action is irreversible.", () => {
+                db.set('claim_motorrad_data', []);
+                toast.success("Claim Motorrad data cleared successfully!");
+            });
+        });
+    }
 
     // Bind Confirm Modal Buttons
     document.getElementById('modal-cancel-btn').addEventListener('click', closeConfirmModal);
@@ -109,6 +138,7 @@ function handleYieldFileUpload() {
             
             let fpyCount = 0;
             let fyCount = 0;
+            let targetCount = 0;
             
             // 1. Process FPY sheet
             const fpySheet = workbook.Sheets['FPY'];
@@ -133,12 +163,31 @@ function handleYieldFileUpload() {
                     fyCount = parsed.length;
                 }
             }
+
+            // 3. Process Yield Target Master Data sheet if present
+            const targetSheetName = workbook.SheetNames.find(name => {
+                const low = name.toLowerCase();
+                return low.includes('target') || low.includes('master') || low.includes('yield master');
+            });
+            if (targetSheetName) {
+                const targetSheet = workbook.Sheets[targetSheetName];
+                const rawRows = XLSX.utils.sheet_to_json(targetSheet, { header: 1, defval: "" });
+                const parsedTargets = parseYieldTargetsRows(rawRows);
+                if (parsedTargets.length > 0) {
+                    db.set('yield_targets', parsedTargets); // overwrite/set
+                    targetCount = parsedTargets.length;
+                }
+            }
             
-            if (fpyCount > 0 || fyCount > 0) {
-                toast.success(`Success! Imported ${fpyCount} FPY process logs & ${fyCount} FY process logs.`);
+            if (fpyCount > 0 || fyCount > 0 || targetCount > 0) {
+                const parts = [];
+                if (fpyCount > 0) parts.push(`${fpyCount} FPY process logs`);
+                if (fyCount > 0) parts.push(`${fyCount} FY process logs`);
+                if (targetCount > 0) parts.push(`${targetCount} Yield targets`);
+                toast.success(`Success! Imported ${parts.join(' & ')}.`);
                 fileInput.value = '';
             } else {
-                toast.error("No valid data found in sheets 'FPY' or 'FY'. Please verify the format.");
+                toast.error("No valid data found in sheets 'FPY', 'FY', or targets. Please verify the format.");
             }
         } catch (err) {
             console.error(err);
@@ -192,6 +241,95 @@ function processYieldPaste() {
     } else {
         toast.error("Failed to parse pasted yield data. Verify format and headers.");
     }
+}
+
+// ----------------------------------------------------
+// COPY PASTE: YIELD TARGETS
+// ----------------------------------------------------
+function processYieldTargetsPaste() {
+    const text = document.getElementById('paste-yield-targets').value;
+    if (!text.trim()) {
+        toast.error("Copy-paste area is empty.");
+        return;
+    }
+    
+    const rows = parseExcelPaste(text);
+    if (rows.length === 0) {
+        toast.error("Pasted text could not be parsed.");
+        return;
+    }
+    
+    const parsed = parseYieldTargetsRows(rows);
+    if (parsed.length > 0) {
+        db.set('yield_targets', parsed); // overwrite all targets
+        toast.success(`Success! Processed & saved ${parsed.length} Yield targets.`);
+        document.getElementById('paste-yield-targets').value = '';
+    } else {
+        toast.error("Failed to parse Yield Master Data. Check columns: Project, Process, Target.");
+    }
+}
+
+function parseYieldTargetsRows(rawRows) {
+    if (!rawRows || rawRows.length === 0) return [];
+    
+    let rows = [];
+    if (Array.isArray(rawRows[0])) {
+        // Excel format (array of arrays)
+        const headers = rawRows[0].map(h => String(h).trim().toLowerCase());
+        for (let i = 1; i < rawRows.length; i++) {
+            const rowArr = rawRows[i];
+            if (rowArr.length === 0 || rowArr.every(cell => String(cell).trim() === "")) continue;
+            const obj = {};
+            headers.forEach((h, idx) => {
+                obj[h] = rowArr[idx] !== undefined ? rowArr[idx] : "";
+            });
+            rows.push(obj);
+        }
+    } else {
+        // Paste format (array of objects)
+        rows = rawRows.map(obj => {
+            const newObj = {};
+            Object.keys(obj).forEach(k => {
+                newObj[k.trim().toLowerCase()] = obj[k];
+            });
+            return newObj;
+        });
+    }
+    
+    const parsed = [];
+    rows.forEach(r => {
+        const keys = Object.keys(r);
+        
+        // Find keys case-insensitively
+        const projectKey = keys.find(k => k.includes('project') || k.includes('proj'));
+        const processKey = keys.find(k => k.includes('process') || k.includes('proc'));
+        const targetKey = keys.find(k => k.includes('target') || k.includes('tgt') || k.includes('%'));
+        
+        if (!projectKey || !processKey || !targetKey) return;
+        
+        const projVal = String(r[projectKey]).trim();
+        const procVal = String(r[processKey]).trim();
+        const targetRaw = String(r[targetKey]).trim();
+        
+        if (!projVal || !procVal || !targetRaw) return;
+        
+        let cleanStr = targetRaw.replace(/,/g, '').replace(/%/g, '').trim();
+        let numVal = parseFloat(cleanStr);
+        if (isNaN(numVal)) return;
+        
+        // Handle decimal targets (e.g. 0.9 => 90%)
+        if (numVal > 0 && numVal <= 1.0) {
+            numVal = numVal * 100;
+        }
+        
+        parsed.push({
+            project: projVal,
+            process: procVal,
+            target: numVal
+        });
+    });
+    
+    return parsed;
 }
 
 // Helper TSV parser for Copy-Paste Grid
@@ -1458,3 +1596,312 @@ function processTopScrapPaste() {
         toast.error("Failed to parse daily scrap or inven pasted data. Please check layout.");
     }
 }
+
+// ----------------------------------------------------
+// QUALITY PERFORMANCE IMPORT
+// ----------------------------------------------------
+function handleQualityFileUpload() {
+    const fileInput = document.getElementById('file-quality-input');
+    const file = fileInput.files[0];
+    
+    if (!file) {
+        toast.error("Please choose a file first.");
+        return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            
+            const sheetName = workbook.SheetNames.find(name => name.toLowerCase().includes('quality')) || workbook.SheetNames[0];
+            const sheet = workbook.Sheets[sheetName];
+            if (!sheet) {
+                toast.error("No sheets found in Excel file.");
+                return;
+            }
+            
+            const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+            const parsed = parseQualityRows(rawRows);
+            
+            if (parsed.length > 0) {
+                const importedDates = [...new Set(parsed.map(d => d.date))];
+                const currentData = db.get('quality_data') || [];
+                const filteredData = currentData.filter(d => !importedDates.includes(d.date));
+                db.set('quality_data', [...filteredData, ...parsed]);
+                
+                toast.success(`Success! Imported ${parsed.length} Quality Performance records.`);
+                fileInput.value = '';
+                cleanAndDeduplicateDB();
+            } else {
+                toast.error("No valid Quality Performance records found in sheet. Verify column headers.");
+            }
+        } catch (err) {
+            console.error(err);
+            toast.error("Excel processing failed: " + err.message);
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function processQualityPaste() {
+    const text = document.getElementById('paste-quality').value;
+    if (!text.trim()) {
+        toast.error("Copy-paste area is empty.");
+        return;
+    }
+    
+    const rows = parseExcelPaste(text);
+    if (rows.length === 0) {
+        toast.error("Pasted text could not be parsed.");
+        return;
+    }
+    
+    const parsed = parseQualityRows(rows);
+    if (parsed.length > 0) {
+        const importedDates = [...new Set(parsed.map(d => d.date))];
+        const currentData = db.get('quality_data') || [];
+        const filteredData = currentData.filter(d => !importedDates.includes(d.date));
+        db.set('quality_data', [...filteredData, ...parsed]);
+        
+        toast.success(`Success! Processed & imported ${parsed.length} Quality Performance records.`);
+        document.getElementById('paste-quality').value = '';
+        cleanAndDeduplicateDB();
+    } else {
+        toast.error("Failed to parse Quality Performance data. Check columns: Date, 8D Reports, Sorting Action, Quality Incident, Quality.");
+    }
+}
+
+function parseQualityRows(rawRows) {
+    if (!rawRows || rawRows.length === 0) return [];
+    
+    let rows = [];
+    if (Array.isArray(rawRows[0])) {
+        // Excel format
+        const headers = rawRows[0].map(h => String(h).trim().toLowerCase());
+        for (let i = 1; i < rawRows.length; i++) {
+            const rowArr = rawRows[i];
+            if (rowArr.length === 0 || rowArr.every(cell => String(cell).trim() === "")) continue;
+            const obj = {};
+            headers.forEach((h, idx) => {
+                obj[h] = rowArr[idx] !== undefined ? rowArr[idx] : "";
+            });
+            obj['_first_col'] = rowArr[0] !== undefined ? rowArr[0] : "";
+            rows.push(obj);
+        }
+    } else {
+        // Paste format
+        rows = rawRows.map(obj => {
+            const newObj = {};
+            Object.keys(obj).forEach(k => {
+                newObj[k.trim().toLowerCase()] = obj[k];
+            });
+            const keys = Object.keys(obj);
+            if (keys.length > 0) {
+                newObj['_first_col'] = obj[keys[0]];
+            }
+            return newObj;
+        });
+    }
+    
+    const parsed = [];
+    rows.forEach(r => {
+        const keys = Object.keys(r);
+        let dateVal = "";
+        
+        let dateKey = keys.find(k => k.includes('date') || k.includes('month') || k.includes('year'));
+        if (dateKey && String(r[dateKey]).trim() !== "") {
+            dateVal = String(r[dateKey]).trim();
+        } else if (r['_first_col'] !== undefined && String(r['_first_col']).trim() !== "") {
+            dateVal = String(r['_first_col']).trim();
+        }
+        
+        if (!dateVal || dateVal.toLowerCase() === 'date' || dateVal.toLowerCase() === 'month') return;
+        
+        const normalizedDate = normalizeDate(dateVal);
+        if (!normalizedDate || !normalizedDate.match(/^\d{4}-\d{2}-\d{2}$/)) return;
+        
+        const reportsKey = keys.find(k => k.includes('8d') || k.includes('report'));
+        const reportsVal = reportsKey ? parseFloat(String(r[reportsKey]).replace(/,/g, '')) : NaN;
+        
+        const sortingKey = keys.find(k => k.includes('sorting') || k.includes('action'));
+        const sortingVal = sortingKey ? parseFloat(String(r[sortingKey]).replace(/,/g, '')) : NaN;
+        
+        const incidentKey = keys.find(k => k.includes('incident'));
+        const incidentVal = incidentKey ? parseFloat(String(r[incidentKey]).replace(/,/g, '')) : NaN;
+        
+        const qualityKey = keys.find(k => (k === 'quality' || k.includes('quality rating')) && k !== incidentKey);
+        const altQualityKey = qualityKey || keys.find(k => k.includes('quality') && k !== incidentKey);
+        const qualityVal = altQualityKey ? parseFloat(String(r[altQualityKey]).replace(/,/g, '')) : NaN;
+        
+        parsed.push({
+            date: normalizedDate,
+            reports_8d: isNaN(reportsVal) ? 5.0 : reportsVal,
+            sorting_action: isNaN(sortingVal) ? 5.0 : sortingVal,
+            quality_incident: isNaN(incidentVal) ? 5.0 : incidentVal,
+            quality: isNaN(qualityVal) ? 5.0 : qualityVal
+        });
+    });
+    
+    return parsed;
+}
+
+// ----------------------------------------------------
+// CLAIM MOTORRAD IMPORT
+// ----------------------------------------------------
+function handleClaimMotorradFileUpload() {
+    const fileInput = document.getElementById('file-claim-motorrad-input');
+    const file = fileInput.files[0];
+    
+    if (!file) {
+        toast.error("Please choose a file first.");
+        return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            
+            const sheetName = workbook.SheetNames[0];
+            const sheet = workbook.Sheets[sheetName];
+            if (!sheet) {
+                toast.error("No sheets found in Excel file.");
+                return;
+            }
+            
+            const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+            const parsed = parseClaimMotorradRows(rawRows);
+            
+            if (parsed.length > 0) {
+                const currentData = db.get('claim_motorrad_data') || [];
+                db.set('claim_motorrad_data', [...currentData, ...parsed]);
+                
+                toast.success(`Success! Imported ${parsed.length} Claim Motorrad records.`);
+                fileInput.value = '';
+                cleanAndDeduplicateDB();
+            } else {
+                toast.error("No valid Claim Motorrad records found. Verify headers.");
+            }
+        } catch (err) {
+            console.error(err);
+            toast.error("Excel processing failed: " + err.message);
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function processClaimMotorradPaste() {
+    const text = document.getElementById('paste-claim-motorrad').value;
+    if (!text.trim()) {
+        toast.error("Copy-paste area is empty.");
+        return;
+    }
+    
+    const rows = parseExcelPaste(text);
+    if (rows.length === 0) {
+        toast.error("Pasted text could not be parsed.");
+        return;
+    }
+    
+    const parsed = parseClaimMotorradRows(rows);
+    if (parsed.length > 0) {
+        const currentData = db.get('claim_motorrad_data') || [];
+        db.set('claim_motorrad_data', [...currentData, ...parsed]);
+        
+        toast.success(`Success! Processed & imported ${parsed.length} Claim Motorrad records.`);
+        document.getElementById('paste-claim-motorrad').value = '';
+        cleanAndDeduplicateDB();
+    } else {
+        toast.error("Failed to parse Claim Motorrad data. Verify the headers.");
+    }
+}
+
+function parseClaimMotorradRows(rawRows) {
+    if (!rawRows || rawRows.length === 0) return [];
+    
+    let headers = [];
+    let rows = [];
+    
+    if (Array.isArray(rawRows[0])) {
+        // Excel format (array of arrays)
+        headers = rawRows[0].map(h => String(h).trim().toLowerCase());
+        for (let i = 1; i < rawRows.length; i++) {
+            const rowArr = rawRows[i];
+            if (rowArr.length === 0 || rowArr.every(cell => String(cell).trim() === "")) continue;
+            const obj = {};
+            headers.forEach((h, idx) => {
+                obj[h] = rowArr[idx] !== undefined ? rowArr[idx] : "";
+            });
+            rows.push(obj);
+        }
+    } else {
+        // Paste format (array of objects)
+        rows = rawRows;
+        if (rows.length > 0) {
+            headers = Object.keys(rows[0]).map(h => h.trim().toLowerCase());
+        }
+    }
+    
+    const parsed = [];
+    rows.forEach(r => {
+        const keys = Object.keys(r);
+        
+        // Helper to find key matching sub-string
+        const findKey = (sub) => keys.find(k => k.trim().toLowerCase().includes(sub));
+        
+        // We need specific mappings
+        const noKey = findKey('claim') || keys[0];
+        const code8dKey = findKey('8d code') || findKey('code');
+        const dateKey = findKey('claim date') || findKey('date');
+        const custKey = findKey('cust.') || findKey('cust') || findKey('customer');
+        const custClaimNoKey = findKey('cust claim') || findKey('customer claim');
+        const titleKey = findKey('title') || findKey('claim title');
+        const customerPnKey = findKey('customer p/n') || findKey('customer part');
+        const cacPnErpKey = findKey('cac p/n. (erp)') || findKey('erp') || findKey('cac p/n erp');
+        const partNameKey = findKey('part name') || findKey('part');
+        const descKey = findKey('description') || findKey('issue');
+        const claimTypeKey = findKey('claim type') || findKey('type');
+        const qtyKey = findKey('qty') || findKey('quantity');
+        const status8dKey = findKey('8d status') || findKey('status');
+        const refNumKey = findKey('reference') || findKey('ref num');
+        const followUpKey = findKey('follow up') || findKey('follow_up');
+        
+        // Model code is specifically column 16, which has header "CAC P/N"
+        // Let's find a key that is exactly "cac p/n" or includes "cac p/n" but doesn't include "erp"
+        const modelCodeKey = keys.find(k => {
+            const kLow = k.trim().toLowerCase();
+            return kLow.includes('cac p/n') && !kLow.includes('erp');
+        }) || keys[keys.length - 1]; // fallback to the last column
+        
+        let rawDate = dateKey ? r[dateKey] : "";
+        if (!rawDate) return;
+        const normalizedDate = normalizeDate(rawDate);
+        if (!normalizedDate) return;
+        
+        parsed.push({
+            no: noKey ? String(r[noKey]).trim() : "",
+            code_8d: code8dKey ? String(r[code8dKey]).trim() : "",
+            date: normalizedDate,
+            cust: custKey ? String(r[custKey]).trim() : "",
+            cust_claim_no: custClaimNoKey ? String(r[custClaimNoKey]).trim() : "",
+            title: titleKey ? String(r[titleKey]).trim() : "",
+            customer_pn: customerPnKey ? String(r[customerPnKey]).trim() : "",
+            cac_pn_erp: cacPnErpKey ? String(r[cacPnErpKey]).trim() : "",
+            part_name: partNameKey ? String(r[partNameKey]).trim() : "",
+            description: descKey ? String(r[descKey]).trim() : "",
+            claim_type: claimTypeKey ? String(r[claimTypeKey]).trim() : "",
+            qty: qtyKey ? String(r[qtyKey]).trim() : "",
+            status_8d: status8dKey ? String(r[status8dKey]).trim() : "",
+            ref_num: refNumKey ? String(r[refNumKey]).trim() : "",
+            follow_up: followUpKey ? String(r[followUpKey]).trim() : "",
+            model_code: modelCodeKey ? String(r[modelCodeKey]).trim() : ""
+        });
+    });
+    
+    return parsed;
+}
+    
+

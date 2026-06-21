@@ -156,10 +156,12 @@ function renderYieldReport() {
     
     // Determine active months based on selected quarter
     let activeMonths = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-    if (selectedQuarter === 'Q1') activeMonths = [1, 2, 3];
-    else if (selectedQuarter === 'Q2') activeMonths = [4, 5, 6];
-    else if (selectedQuarter === 'Q3') activeMonths = [7, 8, 9];
-    else if (selectedQuarter === 'Q4') activeMonths = [10, 11, 12];
+    if (reportType !== 'Year') {
+        if (selectedQuarter === 'Q1') activeMonths = [1, 2, 3];
+        else if (selectedQuarter === 'Q2') activeMonths = [4, 5, 6];
+        else if (selectedQuarter === 'Q3') activeMonths = [7, 8, 9];
+        else if (selectedQuarter === 'Q4') activeMonths = [10, 11, 12];
+    }
 
     // We will aggregate FPY & FY by year and month
     const aggregateData = (dataset) => {
@@ -371,6 +373,134 @@ function renderYieldReport() {
             isYtm: true
         });
 
+    } else if (reportType === 'Year') {
+        tableHeaders = ['Year', 'FPY Yield (%)', 'Final Yield (%)', 'Target (%)'];
+
+        // 1. 2025 Total
+        let totalFpy2025 = 0;
+        let totalFy2025 = 0;
+        
+        if (fpyUseYield) {
+            let sum = 0, count = 0;
+            for (const m of activeMonths) {
+                const key = `2025-${String(m).padStart(2, '0')}`;
+                const val = getMonthlyYield(fpyAgg[key], true);
+                if (val !== null) {
+                    sum += val;
+                    count++;
+                }
+            }
+            totalFpy2025 = count > 0 ? (sum / count) : 0;
+        } else {
+            let totalFpyIns2025 = 0, totalFpyOk2025 = 0;
+            for (const m of activeMonths) {
+                const key = `2025-${String(m).padStart(2, '0')}`;
+                if (fpyAgg[key]) {
+                    totalFpyIns2025 += fpyAgg[key].ins;
+                    totalFpyOk2025 += fpyAgg[key].ok;
+                }
+            }
+            totalFpy2025 = totalFpyIns2025 > 0 ? (totalFpyOk2025 / totalFpyIns2025 * 100) : 0;
+        }
+        
+        if (fyUseYield) {
+            let sum = 0, count = 0;
+            for (const m of activeMonths) {
+                const key = `2025-${String(m).padStart(2, '0')}`;
+                const val = getMonthlyYield(fyAgg[key], true);
+                if (val !== null) {
+                    sum += val;
+                    count++;
+                }
+            }
+            totalFy2025 = count > 0 ? (sum / count) : 0;
+        } else {
+            let totalFyIns2025 = 0, totalFyOk2025 = 0;
+            for (const m of activeMonths) {
+                const key = `2025-${String(m).padStart(2, '0')}`;
+                if (fyAgg[key]) {
+                    totalFyIns2025 += fyAgg[key].ins;
+                    totalFyOk2025 += fyAgg[key].ok;
+                }
+            }
+            totalFy2025 = totalFyIns2025 > 0 ? (totalFyOk2025 / totalFyIns2025 * 100) : 0;
+        }
+
+        // 2. 2026 Total
+        let totalFpy2026 = 0;
+        let totalFy2026 = 0;
+        let totalFpyIns2026 = 0, totalFpyOk2026 = 0;
+        let totalFyIns2026 = 0, totalFyOk2026 = 0;
+
+        for (const m of activeMonths) {
+            const key = `2026-${String(m).padStart(2, '0')}`;
+            if (fpyAgg[key]) {
+                totalFpyIns2026 += fpyAgg[key].ins;
+                totalFpyOk2026 += fpyAgg[key].ok;
+            }
+            if (fyAgg[key]) {
+                totalFyIns2026 += fyAgg[key].ins;
+                totalFyOk2026 += fyAgg[key].ok;
+            }
+        }
+
+        if (fpyUseYield) {
+            let sum = 0, count = 0;
+            for (const m of activeMonths) {
+                const key = `2026-${String(m).padStart(2, '0')}`;
+                const val = getMonthlyYield(fpyAgg[key], true);
+                if (val !== null) {
+                    sum += val;
+                    count++;
+                }
+            }
+            totalFpy2026 = count > 0 ? (sum / count) : 0;
+        } else {
+            totalFpy2026 = totalFpyIns2026 > 0 ? (totalFpyOk2026 / totalFpyIns2026 * 100) : 0;
+        }
+
+        if (fyUseYield) {
+            let sum = 0, count = 0;
+            for (const m of activeMonths) {
+                const key = `2026-${String(m).padStart(2, '0')}`;
+                const val = getMonthlyYield(fyAgg[key], true);
+                if (val !== null) {
+                    sum += val;
+                    count++;
+                }
+            }
+            totalFy2026 = count > 0 ? (sum / count) : 0;
+        } else {
+            totalFy2026 = totalFyIns2026 > 0 ? (totalFyOk2026 / totalFyIns2026 * 100) : 0;
+        }
+
+        tableRows.push({
+            label: '2025',
+            fpy: totalFpy2025,
+            fy: totalFy2025,
+            target: targetVal,
+            isYtm: false
+        });
+        tableRows.push({
+            label: '2026',
+            fpy: totalFpy2026,
+            fy: totalFy2026,
+            target: targetVal,
+            isYtm: false
+        });
+
+        chartLabels.push('2025');
+        chartFpyVals.push(parseFloat(totalFpy2025.toFixed(1)));
+        chartFyFullVals.push(parseFloat(totalFy2025.toFixed(1)));
+        chartFyDiffVals.push(parseFloat(Math.max(0, totalFy2025 - totalFpy2025).toFixed(1)));
+        chartTargetVals.push(targetVal);
+
+        chartLabels.push('2026');
+        chartFpyVals.push(parseFloat(totalFpy2026.toFixed(1)));
+        chartFyFullVals.push(parseFloat(totalFy2026.toFixed(1)));
+        chartFyDiffVals.push(parseFloat(Math.max(0, totalFy2026 - totalFpy2026).toFixed(1)));
+        chartTargetVals.push(targetVal);
+
     } else {
         // Quarterly / Comparative Page
         tableHeaders = ['Month', '2025 FPY (%)', '2025 FY (%)', '2026 FPY (%)', '2026 FY (%)', 'Target (%)'];
@@ -535,12 +665,12 @@ function renderYieldReport() {
             trEl.className = 'ytm-row';
         }
         
-        if (reportType === 'Monthly') {
+        if (reportType === 'Monthly' || reportType === 'Year') {
             trEl.innerHTML = `
                 <td><strong>${row.label}</strong></td>
-                <td>${row.fpy.toFixed(1)}%</td>
-                <td>${row.fy.toFixed(1)}%</td>
-                <td>${row.target.toFixed(1)}%</td>
+                <td>${row.fpy !== null && row.fpy !== undefined ? row.fpy.toFixed(1) + '%' : '-'}</td>
+                <td>${row.fy !== null && row.fy !== undefined ? row.fy.toFixed(1) + '%' : '-'}</td>
+                <td>${row.target !== null && row.target !== undefined ? row.target.toFixed(1) + '%' : '-'}</td>
             `;
         } else {
             trEl.innerHTML = `

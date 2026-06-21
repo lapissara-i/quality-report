@@ -2,7 +2,7 @@
 
 // Initialize LocalStorage database if empty or if schema reset is required
 function initDatabase() {
-    const DB_VERSION = 'v6';
+    const DB_VERSION = 'v8';
     if (localStorage.getItem('bmw_db_initialized') !== DB_VERSION) {
         localStorage.clear(); // Safe clear since this is a demonstration local app
         
@@ -19,9 +19,11 @@ function initDatabase() {
         localStorage.setItem('scrap_targets', JSON.stringify(MOCK_DATA.scrap_targets));
         localStorage.setItem('scrap_daily', JSON.stringify(MOCK_DATA.scrap_daily));
         localStorage.setItem('scrap_inven', JSON.stringify(MOCK_DATA.scrap_inven));
+        localStorage.setItem('quality_data', JSON.stringify(MOCK_DATA.quality_data));
+        localStorage.setItem('claim_motorrad_data', JSON.stringify(MOCK_DATA.claim_motorrad_data));
         
         localStorage.setItem('bmw_db_initialized', DB_VERSION);
-        console.log("Database initialized/reset with SMR/SMP seed data version " + DB_VERSION);
+        console.log("Database initialized/reset with SMR/SMP/Motorrad seed data version " + DB_VERSION);
     }
     // Perform database health check, date repair, and deduplication
     cleanAndDeduplicateDB();
@@ -37,7 +39,9 @@ const DB_SCHEMAS = {
     ppm_data: ["date", "customer", "code", "defect_qty", "shipped_qty"],
     claims_data: ["date", "project", "claim_type", "location", "qty"],
     scrap_daily: ["date", "process", "erp_code", "defect", "qty"],
-    scrap_inven: ["date", "erp_code", "process", "status", "qty"]
+    scrap_inven: ["date", "erp_code", "process", "status", "qty"],
+    quality_data: ["date", "reports_8d", "sorting_action", "quality_incident", "quality"],
+    claim_motorrad_data: ["no", "code_8d", "date", "cust", "cust_claim_no", "title", "customer_pn", "cac_pn_erp", "part_name", "description", "claim_type", "qty", "status_8d", "ref_num", "follow_up", "model_code"]
 };
 
 // Compression Maps
@@ -174,7 +178,7 @@ function cleanAndDeduplicateDB() {
     const keys = [
         'scrap_data', 'rework_data', 'wip_data', 
         'yield_fpy_data', 'yield_fy_data', 'ppm_data', 
-        'claims_data', 'scrap_daily', 'scrap_inven'
+        'claims_data', 'scrap_daily', 'scrap_inven', 'quality_data', 'claim_motorrad_data'
     ];
     let totalCleaned = 0;
     
@@ -217,6 +221,10 @@ function cleanAndDeduplicateDB() {
                     dupKey = `${item.date}_${item.process}_${item.erp_code}_${item.defect}_${item.qty}`;
                 } else if (key === 'scrap_inven') {
                     dupKey = `${item.date}_${item.erp_code}_${item.process}_${item.status}_${item.qty}`;
+                } else if (key === 'quality_data') {
+                    dupKey = `${item.date}_${item.reports_8d}_${item.sorting_action}_${item.quality_incident}_${item.quality}`;
+                } else if (key === 'claim_motorrad_data') {
+                    dupKey = `${item.date}_${item.code_8d}_${item.title}_${item.model_code}_${item.status_8d}`;
                 } else {
                     dupKey = JSON.stringify(item);
                 }
@@ -310,6 +318,9 @@ function injectLayout(pageTitle = "BMW Portal") {
                     <li class="${filename === 'claims.html' ? 'active' : ''}">
                         <a href="claims.html"><i data-lucide="undo-2"></i>Claims Return</a>
                     </li>
+                    <li class="${filename === 'claim-motorrad.html' ? 'active' : ''}">
+                        <a href="claim-motorrad.html"><i data-lucide="alert-circle"></i>Claim Motorrad</a>
+                    </li>
                     <li class="${filename === 'yield.html' ? 'active' : ''}">
                         <a href="yield.html"><i data-lucide="gauge"></i>Yield Report</a>
                     </li>
@@ -324,6 +335,9 @@ function injectLayout(pageTitle = "BMW Portal") {
                     </li>
                     <li class="${filename === 'top-scrap.html' ? 'active' : ''}">
                         <a href="top-scrap.html"><i data-lucide="pie-chart"></i>Top Process Scrap</a>
+                    </li>
+                    <li class="${filename === 'quality.html' ? 'active' : ''}">
+                        <a href="quality.html"><i data-lucide="award"></i>Quality Performance</a>
                     </li>
                     <li class="${filename === 'import.html' ? 'active' : ''}">
                         <a href="import.html"><i data-lucide="upload-cloud"></i>Import Portal</a>
@@ -499,6 +513,32 @@ function getQuarterString(dateStr) {
 function normalizeDate(val) {
     if (!val) return '';
     
+    const dateStr = String(val).trim();
+    const cleanDateStr = dateStr.split(/\s+/)[0];
+    
+    // Parse Month-Year shorthand format like Jan-25, Feb-26, Jan-2025, etc.
+    const matchMy = cleanDateStr.match(/^([a-zA-Z]{3})[/-](\d{2})$/);
+    if (matchMy) {
+        const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+        const mIdx = months.indexOf(matchMy[1].toLowerCase());
+        if (mIdx !== -1) {
+            const m = String(mIdx + 1).padStart(2, '0');
+            const y = '20' + matchMy[2];
+            return `${y}-${m}-15`; // 15th of the month
+        }
+    }
+    const matchMy4 = cleanDateStr.match(/^([a-zA-Z]{3})[/-](\d{4})$/);
+    if (matchMy4) {
+        const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+        const mIdx = months.indexOf(matchMy4[1].toLowerCase());
+        if (mIdx !== -1) {
+            const m = String(mIdx + 1).padStart(2, '0');
+            let y = parseInt(matchMy4[2]);
+            if (y > 2400) y -= 543;
+            return `${y}-${m}-15`; // 15th of the month
+        }
+    }
+
     // 1. If it's a JS Date object
     if (val instanceof Date || (typeof val === 'object' && typeof val.getMonth === 'function')) {
         let y = val.getFullYear();
@@ -521,9 +561,7 @@ function normalizeDate(val) {
         return `${y}-${m}-${d}`;
     }
     
-    // Clean string by splitting on whitespace to remove any time suffix
-    const dateStr = String(val).trim();
-    const cleanDateStr = dateStr.split(/\s+/)[0];
+    // Already cleaned and split at the top of function
     
     // 3. If format contains '/'
     if (cleanDateStr.includes('/')) {

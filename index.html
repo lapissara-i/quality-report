@@ -339,8 +339,8 @@
                         <h3 class="card-title">Operations Summary</h3>
                         <span id="summary-period" class="user-role" style="font-size: 0.85rem; background-color: var(--border-color); padding: 0.25rem 0.75rem; border-radius: 20px;">Latest Data</span>
                     </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; flex-grow: 1;">
-                        <div style="background-color: var(--bg-primary); padding: 1.25rem; border-radius: 12px; display: flex; flex-direction: column; justify-content: center;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; flex-grow: 1;" id="summary-grid-container">
+                        <div style="background-color: var(--bg-primary); padding: 1.25rem; border-radius: 12px; display: flex; flex-direction: column; justify-content: center;" id="summary-ppm-box">
                             <span style="font-size: 0.8rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase;">PPM Avg</span>
                             <span id="summary-ppm" style="font-size: 1.5rem; font-weight: 700; color: var(--accent-blue); font-family: 'Outfit', sans-serif;">0.00</span>
                         </div>
@@ -361,7 +361,7 @@
             </div>
 
             <!-- Section 1: PPM -->
-            <div style="margin-bottom: 2.5rem;">
+            <div style="margin-bottom: 2.5rem;" id="ppm-section-container">
                 <h4 style="font-size: 1.15rem; font-weight: 700; font-family: 'Outfit', sans-serif; margin-bottom: 1rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
                     <i data-lucide="bar-chart-3" style="color: var(--accent-blue); width: 20px; height: 20px;"></i> PPM PERFORMANCE (PARTS PER MILLION)
                 </h4>
@@ -369,7 +369,7 @@
                     <!-- PPM Box 1: vs Target -->
                     <div class="kpi-card" id="ppm-box-target">
                         <div class="kpi-card-header">
-                            <span class="kpi-label">PPM vs Target (5,500)</span>
+                            <span class="kpi-label">PPM THIS MONTH VS TARGET (5,500)</span>
                             <span class="kpi-icon"><i data-lucide="target" style="width: 16px; height: 16px;"></i></span>
                         </div>
                         <div class="kpi-value-container">
@@ -545,16 +545,28 @@
             const logoTitleEl = document.getElementById('operations-logo-title');
             const logoDescEl = document.getElementById('operations-logo-desc');
 
+            const ppmSection = document.getElementById('ppm-section-container');
+            const ppmSummaryBox = document.getElementById('summary-ppm-box');
+            const summaryGrid = document.getElementById('summary-grid-container');
+
             if (profile === 'G8X') {
                 if (titleEl) titleEl.textContent = "G8X Dashboard Summary";
                 if (subtitleEl) subtitleEl.textContent = "Real-time quality indicators and comparative benchmarks for the G8X platform.";
                 if (logoTitleEl) logoTitleEl.textContent = "G8X Production";
                 if (logoDescEl) logoDescEl.textContent = "Official BMW Carbon Fiber Reinforcements Quality Tracking & Reporting System.";
+                
+                if (ppmSection) ppmSection.style.display = 'block';
+                if (ppmSummaryBox) ppmSummaryBox.style.display = 'flex';
+                if (summaryGrid) summaryGrid.style.gridTemplateColumns = '1fr 1fr';
             } else {
                 if (titleEl) titleEl.textContent = "Motorrad Dashboard Summary";
                 if (subtitleEl) subtitleEl.textContent = "Real-time quality indicators and comparative benchmarks for the Motorrad platform.";
                 if (logoTitleEl) logoTitleEl.textContent = "Motorrad Production";
                 if (logoDescEl) logoDescEl.textContent = "Official BMW Motorrad Quality Tracking & Reporting System.";
+                
+                if (ppmSection) ppmSection.style.display = 'none';
+                if (ppmSummaryBox) ppmSummaryBox.style.display = 'none';
+                if (summaryGrid) summaryGrid.style.gridTemplateColumns = 'repeat(3, 1fr)';
             }
 
             recalculateStats();
