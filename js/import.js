@@ -16,9 +16,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('upload-ppm-btn').addEventListener('click', handlePpmFileUpload);
     document.getElementById('upload-claims-btn').addEventListener('click', handleClaimsFileUpload);
     document.getElementById('upload-wip-btn').addEventListener('click', handleWipFileUpload);
-    document.getElementById('upload-scrap-btn').addEventListener('click', handleScrapFileUpload);
     if (document.getElementById('upload-rework-btn')) {
         document.getElementById('upload-rework-btn').addEventListener('click', handleReworkFileUpload);
+    }
+    if (document.getElementById('upload-top-scrap-btn')) {
+        document.getElementById('upload-top-scrap-btn').addEventListener('click', handleTopScrapFileUpload);
     }
     
     // Bind Paste Buttons
@@ -27,7 +29,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('paste-claims-btn').addEventListener('click', processClaimsPaste);
     document.getElementById('paste-wip-btn').addEventListener('click', processWipPaste);
     document.getElementById('paste-rework-btn').addEventListener('click', processReworkPaste);
-    document.getElementById('paste-scrap-btn').addEventListener('click', processScrapTopPaste);
+    if (document.getElementById('paste-top-scrap-btn')) {
+        document.getElementById('paste-top-scrap-btn').addEventListener('click', processTopScrapPaste);
+    }
     
     // Bind Clear Buttons
     document.getElementById('clear-yield-btn').addEventListener('click', () => {
@@ -50,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
     document.getElementById('clear-wip-btn').addEventListener('click', () => {
-        showConfirmModal("Clear WIP Data", "Are you sure you want to delete all WIP data? This action is irreversible.", () => {
+        showConfirmModal("Clear WIP Data", "Are you want to delete all WIP data? This action is irreversible.", () => {
             db.set('wip_data', []);
             toast.success("WIP data cleared successfully!");
         });
@@ -61,14 +65,15 @@ document.addEventListener('DOMContentLoaded', () => {
             toast.success("Rework data cleared successfully!");
         });
     });
-    document.getElementById('clear-scrap-btn').addEventListener('click', () => {
-        showConfirmModal("Clear Scrap Data", "Are you sure you want to delete all Scrap defect and inventory data? This action is irreversible.", () => {
-            db.set('scrap_data', []);
-            db.set('scrap_daily', []);
-            db.set('scrap_inven', []);
-            toast.success("Scrap data cleared successfully!");
+    if (document.getElementById('clear-top-scrap-btn')) {
+        document.getElementById('clear-top-scrap-btn').addEventListener('click', () => {
+            showConfirmModal("Clear Top Scrap & Inven Data", "Are you sure you want to delete all Daily Scrap and Inven data? This action is irreversible.", () => {
+                db.set('scrap_daily', []);
+                db.set('scrap_inven', []);
+                toast.success("Top Scrap and Inven data cleared successfully!");
+            });
         });
-    });
+    }
 
     // Bind Confirm Modal Buttons
     document.getElementById('modal-cancel-btn').addEventListener('click', closeConfirmModal);
@@ -1006,9 +1011,45 @@ function parseMatrixGrid(rawRows) {
     }
     
     const headerRow = rawRows[headerRowIdx];
-    const dateCols = [];
     
-    for (let colIdx = 2; colIdx < headerRow.length; colIdx++) {
+    // Find ERP Code and Process Status columns dynamically
+    let erpColIdx = 0;
+    let processColIdx = -1;
+    
+    for (let c = 0; c < headerRow.length; c++) {
+        const val = String(headerRow[c] || "").toLowerCase().trim();
+        if (val === 'erp code' || val === 'erp' || val === 'cac part no.' || val === 'รหัสสินค้า') {
+            erpColIdx = c;
+        }
+        if (val === 'process' || val === 'process status' || val === 'ขั้นตอน') {
+            processColIdx = c;
+        }
+    }
+    if (erpColIdx === 0) {
+        for (let c = 0; c < headerRow.length; c++) {
+            const val = String(headerRow[c] || "").toLowerCase().trim();
+            if (val.includes('erp') || val.includes('code') || val.includes('part') || val.includes('รหัส') || val.includes('cac')) {
+                erpColIdx = c;
+                break;
+            }
+        }
+    }
+    if (processColIdx === -1) {
+        for (let c = 0; c < headerRow.length; c++) {
+            const val = String(headerRow[c] || "").toLowerCase().trim();
+            if (val.includes('process') || val.includes('status') || val.includes('ขั้นตอน') || val.includes('สถานะ')) {
+                processColIdx = c;
+                break;
+            }
+        }
+    }
+    if (processColIdx === -1) {
+        processColIdx = 1; // fallback
+    }
+    
+    const dateCols = [];
+    for (let colIdx = 0; colIdx < headerRow.length; colIdx++) {
+        if (colIdx === erpColIdx || colIdx === processColIdx) continue;
         const cell = headerRow[colIdx];
         if (cell !== undefined && cell !== null && String(cell).trim() !== "") {
             let dateStr = normalizeDate(cell);
@@ -1030,10 +1071,10 @@ function parseMatrixGrid(rawRows) {
     
     for (let rIdx = headerRowIdx + 1; rIdx < rawRows.length; rIdx++) {
         const row = rawRows[rIdx];
-        if (!row || row.length < 2) continue;
+        if (!row || row.length <= Math.max(erpColIdx, processColIdx)) continue;
         
-        const erpCode = String(row[0] || "").trim();
-        const processStatus = String(row[1] || "").trim();
+        const erpCode = String(row[erpColIdx] || "").trim();
+        const processStatus = String(row[processColIdx] || "").trim();
         
         if (!erpCode || !processStatus) continue;
         
@@ -1125,12 +1166,203 @@ function handleReworkFileUpload() {
     reader.readAsArrayBuffer(file);
 }
 
+
+
+let activeClearCallback = null;
+function showConfirmModal(title, msg, onConfirm) {
+    document.getElementById('modal-title').textContent = title;
+    document.getElementById('modal-msg').textContent = msg;
+    document.getElementById('confirm-modal').style.display = 'flex';
+    activeClearCallback = onConfirm;
+}
+function closeConfirmModal() {
+    document.getElementById('confirm-modal').style.display = 'none';
+    activeClearCallback = null;
+}
+
 // ----------------------------------------------------
-// FILE UPLOAD: SCRAP TOP (Daily Scrap & Inven)
+// TOP PROCESS SCRAP IMPORT LOGIC
 // ----------------------------------------------------
-function handleScrapFileUpload() {
-    const fileInput = document.getElementById('file-scrap-input');
+function parseDailyScrapGrid(rawRows) {
+    if (rawRows.length < 2) return [];
+    
+    // Find header row (usually contains date or defect)
+    let headerIdx = -1;
+    for (let r = 0; r < Math.min(rawRows.length, 5); r++) {
+        const row = rawRows[r];
+        if (row.some(cell => String(cell).toLowerCase().includes('date') || String(cell).toLowerCase().includes('defect'))) {
+            headerIdx = r;
+            break;
+        }
+    }
+    if (headerIdx === -1) headerIdx = 0;
+    
+    const headers = rawRows[headerIdx].map(h => String(h).trim().toLowerCase());
+    
+    // Match indices
+    const dateCol = headers.findIndex(h => h.includes('date'));
+    const erpCol = headers.findIndex(h => h.includes('part no') || h.includes('cac part') || h.includes('erp') || h.includes('production order'));
+    const processCol = headers.findIndex(h => h.includes('process'));
+    const qtyCol = headers.findIndex(h => h.includes('qty') || h.includes('q\'ty') || h.includes('quantity') || h.includes('qty (pcs)'));
+    const defectCol = headers.findIndex(h => h.includes('defect') || h.includes('reason'));
+    
+    // Fallback defaults
+    const finalDateCol = dateCol !== -1 ? dateCol : 0;
+    const finalErpCol = erpCol !== -1 ? erpCol : 2;
+    const finalProcessCol = processCol !== -1 ? processCol : 3;
+    const finalQtyCol = qtyCol !== -1 ? qtyCol : 4;
+    const finalDefectCol = defectCol !== -1 ? defectCol : 5;
+    
+    const parsed = [];
+    for (let r = headerIdx + 1; r < rawRows.length; r++) {
+        const row = rawRows[r];
+        if (!row || row.length === 0) continue;
+        
+        const rawDate = row[finalDateCol];
+        if (!rawDate) continue;
+        
+        const dateStr = normalizeDate(rawDate);
+        if (!dateStr) continue;
+        
+        let erp = String(row[finalErpCol] || '').trim();
+        if (erp.includes('|')) {
+            erp = erp.split('|')[0].trim();
+        }
+        
+        const process = String(row[finalProcessCol] || '').trim();
+        const qty = parseInt(String(row[finalQtyCol]).replace(/,/g, '')) || 0;
+        const defect = String(row[finalDefectCol] || '').trim();
+        
+        if (!defect || qty <= 0) continue;
+        
+        parsed.push({
+            date: dateStr,
+            process: process,
+            erp_code: erp,
+            defect: defect,
+            qty: qty
+        });
+    }
+    return parsed;
+}
+
+function parseInvenMatrixGrid(rawRows, year) {
+    if (rawRows.length < 2) return [];
+    
+    let headerIdx = -1;
+    for (let r = 0; r < Math.min(rawRows.length, 5); r++) {
+        const row = rawRows[r];
+        if (row.some(cell => String(cell).toLowerCase().includes('erp code') || String(cell).toLowerCase().includes('process1'))) {
+            headerIdx = r;
+            break;
+        }
+    }
+    if (headerIdx === -1) headerIdx = 0;
+    
+    const headers = rawRows[headerIdx].map(h => String(h).trim().toLowerCase());
+    
+    const erpCol = headers.findIndex(h => h.includes('erp code') || h === 'erp');
+    const processCol = headers.findIndex(h => h.includes('process1') || h === 'process_1');
+    const statusCol = headers.findIndex(h => h.includes('no. process') || h === 'status' || h === 'process'); 
+    
+    // Find date columns
+    const dateCols = [];
+    const dateHeaders = [];
+    
+    for (let c = 0; c < headers.length; c++) {
+        const h = headers[c];
+        if (/\d+-[a-zA-Z]+/.test(h) || /\d+\/[a-zA-Z]+/.test(h) || (!isNaN(h) && Number(h) > 30000)) {
+            dateCols.push(c);
+            dateHeaders.push(h);
+        }
+    }
+    
+    if (dateCols.length === 0) {
+        for (let c = 8; c < headers.length; c++) {
+            if (headers[c]) {
+                dateCols.push(c);
+                dateHeaders.push(headers[c]);
+            }
+        }
+    }
+    
+    if (dateCols.length === 0) return [];
+    
+    const parsed = [];
+    for (let r = headerIdx + 1; r < rawRows.length; r++) {
+        const row = rawRows[r];
+        if (!row || row.length === 0) continue;
+        
+        const erpCode = String(row[erpCol] || '').trim();
+        if (!erpCode) continue;
+        
+        const processName = String(row[processCol !== -1 ? processCol : 3] || '').trim();
+        
+        let statusName = String(row[statusCol !== -1 ? statusCol : 4] || '').trim();
+        if (statusName.includes(':')) {
+            statusName = statusName.split(':')[1].trim();
+        }
+        
+        let finalStatus = 'OK';
+        if (statusName.toLowerCase().includes('scrap')) {
+            finalStatus = 'Scrap';
+        }
+        
+        dateCols.forEach((c, idx) => {
+            const headerVal = dateHeaders[idx];
+            const resolvedDate = parseInvenHeaderDate(headerVal, year);
+            if (!resolvedDate) return;
+            
+            const qty = parseInt(String(row[c]).replace(/,/g, '')) || 0;
+            if (qty > 0) {
+                parsed.push({
+                    date: resolvedDate,
+                    erp_code: erpCode,
+                    process: processName,
+                    status: finalStatus,
+                    qty: qty
+                });
+            }
+        });
+    }
+    return parsed;
+}
+
+function parseInvenHeaderDate(header, year) {
+    if (!header) return null;
+    
+    if (!isNaN(header) && Number(header) > 30000) {
+        return normalizeDate(header);
+    }
+    
+    const cleanHeader = String(header).trim().toLowerCase();
+    const match = cleanHeader.match(/^(\d+)-([a-z]+)/);
+    if (!match) {
+        return normalizeDate(header);
+    }
+    
+    const day = parseInt(match[1]);
+    const monthName = match[2];
+    const monthMap = {
+        jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+        jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+    };
+    
+    const month = monthMap[monthName.substring(0, 3)];
+    if (isNaN(day) || month === undefined) return null;
+    
+    const d = new Date(year, month, day);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+}
+
+function handleTopScrapFileUpload() {
+    const fileInput = document.getElementById('file-top-scrap-input');
     const file = fileInput.files[0];
+    const yearSelect = document.getElementById('import-top-scrap-year');
+    const year = parseInt(yearSelect.value) || 2026;
     
     if (!file) {
         toast.error("Please choose a file first.");
@@ -1146,106 +1378,34 @@ function handleScrapFileUpload() {
             let dailyCount = 0;
             let invenCount = 0;
             
-            // Helper for case-insensitive and flexible sheet name lookup
-            const findSheetName = (names) => {
-                // Exact trimmed case-insensitive
-                for (let name of names) {
-                    const found = workbook.SheetNames.find(s => s.toLowerCase().trim() === name.toLowerCase());
-                    if (found) return found;
-                }
-                // Partial contains
-                for (let name of names) {
-                    const found = workbook.SheetNames.find(s => s.toLowerCase().includes(name.toLowerCase()));
-                    if (found) return found;
-                }
-                return null;
-            };
-            
-            // 1. Process Daily Scrap sheet
-            const dailySheetName = findSheetName(['Daily Scrap', 'DailyScrap', 'Daily_Scrap', 'Scrap', 'Defect']) || workbook.SheetNames[0];
-            const dailySheet = workbook.Sheets[dailySheetName];
-            
+            const dailySheet = workbook.Sheets['Daily Scrap'];
             if (dailySheet) {
                 const rawRows = XLSX.utils.sheet_to_json(dailySheet, { header: 1, defval: "" });
-                if (isMatrixFormat(rawRows)) {
-                    const parsed = parseMatrixGrid(rawRows);
-                    if (parsed.length > 0) {
-                        const current = db.get('scrap_data');
-                        const parsedDates = new Set(parsed.map(d => d.date));
-                        const filteredCurrent = current.filter(d => !parsedDates.has(d.date));
-                        db.set('scrap_data', [...filteredCurrent, ...parsed]);
-                        dailyCount = parsed.length;
-                    }
-                } else {
-                    const rows = XLSX.utils.sheet_to_json(dailySheet);
-                    const currentDaily = db.get('scrap_daily');
-                    const parsed = [];
-                    
-                    rows.forEach(r => {
-                        const keys = Object.keys(r);
-                        let dKey = keys.find(k => k.toLowerCase().includes('date') || k.toLowerCase().includes('month') || k.includes('วัน'));
-                        let prKey = keys.find(k => k.toLowerCase().includes('process') || k.toLowerCase().includes('สถานะ'));
-                        let erKey = keys.find(k => k.toLowerCase().includes('erp') || k.toLowerCase().includes('รหัส'));
-                        let dfKey = keys.find(k => k.toLowerCase().includes('defect') || k.toLowerCase().includes('ng') || k.toLowerCase().includes('เสีย'));
-                        let qKey = keys.find(k => k.toLowerCase().includes('qty') || k.toLowerCase().includes('quantity') || k.toLowerCase().includes('จำนวน'));
-                        
-                        if (dKey && prKey && erKey && dfKey && qKey) {
-                            const rawQty = r[qKey];
-                            const cleanQty = Number(String(rawQty !== undefined && rawQty !== null ? rawQty : '').replace(/,/g, '').trim()) || 0;
-                            parsed.push({
-                                date: normalizeDate(r[dKey]),
-                                process: String(r[prKey] || '').trim(),
-                                erp_code: String(r[erKey] || '').trim(),
-                                defect: String(r[dfKey] || '').trim(),
-                                qty: cleanQty
-                            });
-                            dailyCount++;
-                        }
-                    });
-                    if (parsed.length > 0) {
-                        db.set('scrap_daily', [...currentDaily, ...parsed]);
-                    }
+                const parsed = parseDailyScrapGrid(rawRows);
+                if (parsed.length > 0) {
+                    const currentDaily = db.get('scrap_daily') || [];
+                    db.set('scrap_daily', [...currentDaily, ...parsed]);
+                    dailyCount = parsed.length;
                 }
             }
             
-            // 2. Process Inven sheet
-            const invenSheetName = findSheetName(['Inven', 'Inventory', 'Input', 'InputQty', 'Input Qty']);
-            const invenSheet = invenSheetName ? workbook.Sheets[invenSheetName] : null;
+            const invenSheet = workbook.Sheets['Inven'];
             if (invenSheet) {
-                const rows = XLSX.utils.sheet_to_json(invenSheet);
-                const currentInven = db.get('scrap_inven');
-                const parsed = [];
-                
-                rows.forEach(r => {
-                    const keys = Object.keys(r);
-                    let dKey = keys.find(k => k.toLowerCase().includes('date') || k.toLowerCase().includes('month') || k.includes('วัน'));
-                    let erKey = keys.find(k => {
-                        const s = k.toLowerCase();
-                        return s.includes('erp') || s.includes('code') || s.includes('part') || s.includes('รหัส');
-                    });
-                    let iKey = keys.find(k => k.toLowerCase().includes('input') || k.toLowerCase().includes('qty') || k.toLowerCase().includes('quantity') || k.toLowerCase().includes('จำนวน'));
-                    
-                    if (dKey && erKey && iKey) {
-                        const rawInven = r[iKey];
-                        const cleanInven = Number(String(rawInven !== undefined && rawInven !== null ? rawInven : '').replace(/,/g, '').trim()) || 0;
-                        parsed.push({
-                            date: normalizeDate(r[dKey]),
-                            erp_code: String(r[erKey] || '').trim(),
-                            input_qty: cleanInven
-                        });
-                        invenCount++;
-                    }
-                });
+                const rawRows = XLSX.utils.sheet_to_json(invenSheet, { header: 1, defval: "" });
+                const parsed = parseInvenMatrixGrid(rawRows, year);
                 if (parsed.length > 0) {
+                    const currentInven = db.get('scrap_inven') || [];
                     db.set('scrap_inven', [...currentInven, ...parsed]);
+                    invenCount = parsed.length;
                 }
             }
             
             if (dailyCount > 0 || invenCount > 0) {
-                toast.success(`Success! Imported ${dailyCount} scrap records & ${invenCount} inventory logs.`);
+                toast.success(`Success! Imported ${dailyCount} Daily Scrap defect logs & ${invenCount} Inven quantity records.`);
                 fileInput.value = '';
+                cleanAndDeduplicateDB();
             } else {
-                toast.error("No sheets 'Daily Scrap' or 'Inven' found, or columns do not match.");
+                toast.error("No valid data found in sheets 'Daily Scrap' or 'Inven'. Please verify the format.");
             }
         } catch (err) {
             console.error(err);
@@ -1255,12 +1415,11 @@ function handleScrapFileUpload() {
     reader.readAsArrayBuffer(file);
 }
 
-// ----------------------------------------------------
-// COPY PASTE: SCRAP TOP
-// ----------------------------------------------------
-function processScrapTopPaste() {
-    const dailyText = document.getElementById('paste-scrap-daily').value;
-    const invenText = document.getElementById('paste-scrap-inven').value;
+function processTopScrapPaste() {
+    const dailyText = document.getElementById('paste-daily-scrap').value;
+    const invenText = document.getElementById('paste-inven').value;
+    const yearSelect = document.getElementById('paste-top-scrap-year');
+    const year = parseInt(yearSelect.value) || 2026;
     
     if (!dailyText.trim() && !invenText.trim()) {
         toast.error("Both paste text areas are empty.");
@@ -1270,98 +1429,32 @@ function processScrapTopPaste() {
     let dailyCount = 0;
     let invenCount = 0;
     
-    // Process Daily Scrap Paste
     if (dailyText.trim()) {
-        const rawRows = parseWipTSV(dailyText);
-        if (isMatrixFormat(rawRows)) {
-            const parsed = parseMatrixGrid(rawRows);
-            if (parsed.length > 0) {
-                const current = db.get('scrap_data');
-                const parsedDates = new Set(parsed.map(d => d.date));
-                const filteredCurrent = current.filter(d => !parsedDates.has(d.date));
-                db.set('scrap_data', [...filteredCurrent, ...parsed]);
-                dailyCount = parsed.length;
-            }
-        } else {
-            const rows = parseExcelPaste(dailyText);
-            const currentDaily = db.get('scrap_daily');
-            const parsed = [];
-            
-            rows.forEach(r => {
-                const keys = Object.keys(r);
-                let dKey = keys.find(k => k.toLowerCase().includes('date') || k.toLowerCase().includes('month') || k.includes('วัน'));
-                let prKey = keys.find(k => k.toLowerCase().includes('process') || k.toLowerCase().includes('สถานะ'));
-                let erKey = keys.find(k => k.toLowerCase().includes('erp') || k.toLowerCase().includes('รหัส'));
-                let dfKey = keys.find(k => k.toLowerCase().includes('defect') || k.toLowerCase().includes('ng') || k.toLowerCase().includes('เสีย'));
-                let qKey = keys.find(k => k.toLowerCase().includes('qty') || k.toLowerCase().includes('quantity') || k.toLowerCase().includes('จำนวน'));
-                
-                if (dKey && prKey && erKey && dfKey && qKey) {
-                    const rawQty = r[qKey];
-                    const cleanQty = Number(String(rawQty !== undefined && rawQty !== null ? rawQty : '').replace(/,/g, '').trim()) || 0;
-                    parsed.push({
-                        date: normalizeDate(r[dKey]),
-                        process: String(r[prKey] || '').trim(),
-                        erp_code: String(r[erKey] || '').trim(),
-                        defect: String(r[dfKey] || '').trim(),
-                        qty: cleanQty
-                    });
-                    dailyCount++;
-                }
-            });
-            if (parsed.length > 0) {
-                db.set('scrap_daily', [...currentDaily, ...parsed]);
-            }
+        const rows = dailyText.split('\n').map(row => row.split('\t'));
+        const parsed = parseDailyScrapGrid(rows);
+        if (parsed.length > 0) {
+            const currentDaily = db.get('scrap_daily') || [];
+            db.set('scrap_daily', [...currentDaily, ...parsed]);
+            dailyCount = parsed.length;
         }
     }
     
-    // Process Inven Paste
     if (invenText.trim()) {
-        const rows = parseExcelPaste(invenText);
-        const currentInven = db.get('scrap_inven');
-        const parsed = [];
-        
-        rows.forEach(r => {
-            const keys = Object.keys(r);
-            let dKey = keys.find(k => k.toLowerCase().includes('date') || k.toLowerCase().includes('month') || k.includes('วัน'));
-            let erKey = keys.find(k => {
-                const s = k.toLowerCase();
-                return s.includes('erp') || s.includes('code') || s.includes('part') || s.includes('รหัส');
-            });
-            let iKey = keys.find(k => k.toLowerCase().includes('input') || k.toLowerCase().includes('qty') || k.toLowerCase().includes('quantity') || k.toLowerCase().includes('จำนวน'));
-            
-            if (dKey && erKey && iKey) {
-                const rawInven = r[iKey];
-                const cleanInven = Number(String(rawInven !== undefined && rawInven !== null ? rawInven : '').replace(/,/g, '').trim()) || 0;
-                parsed.push({
-                    date: normalizeDate(r[dKey]),
-                    erp_code: String(r[erKey] || '').trim(),
-                    input_qty: cleanInven
-                });
-                invenCount++;
-            }
-        });
+        const rows = invenText.split('\n').map(row => row.split('\t'));
+        const parsed = parseInvenMatrixGrid(rows, year);
         if (parsed.length > 0) {
+            const currentInven = db.get('scrap_inven') || [];
             db.set('scrap_inven', [...currentInven, ...parsed]);
+            invenCount = parsed.length;
         }
     }
     
     if (dailyCount > 0 || invenCount > 0) {
-        toast.success(`Success! Imported ${dailyCount} scrap records & ${invenCount} inventory logs.`);
-        document.getElementById('paste-scrap-daily').value = '';
-        document.getElementById('paste-scrap-inven').value = '';
+        toast.success(`Success! Pasted & imported ${dailyCount} Daily Scrap defect logs & ${invenCount} Inven quantity records.`);
+        document.getElementById('paste-daily-scrap').value = '';
+        document.getElementById('paste-inven').value = '';
+        cleanAndDeduplicateDB();
     } else {
-        toast.error("Failed to parse data. Verify headers match expected columns.");
+        toast.error("Failed to parse daily scrap or inven pasted data. Please check layout.");
     }
-}
-
-let activeClearCallback = null;
-function showConfirmModal(title, msg, onConfirm) {
-    document.getElementById('modal-title').textContent = title;
-    document.getElementById('modal-msg').textContent = msg;
-    document.getElementById('confirm-modal').style.display = 'flex';
-    activeClearCallback = onConfirm;
-}
-function closeConfirmModal() {
-    document.getElementById('confirm-modal').style.display = 'none';
-    activeClearCallback = null;
 }

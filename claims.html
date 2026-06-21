@@ -24,10 +24,11 @@
         <main>
             <div class="filters-bar">
                 <div class="filter-group">
-                    <label for="claims-project">Select Project</label>
-                    <select id="claims-project">
-                        <option value="All">All Projects</option>
-                    </select>
+                    <label>Select Project</label>
+                    <div class="multiselect-dropdown" id="claims-project-dropdown">
+                        <button class="multiselect-btn" id="claims-project-btn" type="button">All Projects</button>
+                        <div class="multiselect-options" id="claims-project-options" style="display: none;"></div>
+                    </div>
                 </div>
                 <div class="filter-group">
                     <label for="claims-quarter">Select Quarter</label>

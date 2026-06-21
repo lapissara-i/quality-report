@@ -1,5 +1,7 @@
 // Yield Report Controller
 let yieldChartInstance = null;
+let selectedYieldProjects = [];
+let allYieldProjects = [];
 
 document.addEventListener('DOMContentLoaded', () => {
     injectLayout("Yield Performance Report");
@@ -7,7 +9,6 @@ document.addEventListener('DOMContentLoaded', () => {
     renderYieldReport();
     
     // Bind listeners
-    document.getElementById('yield-project').addEventListener('change', renderYieldReport);
     document.getElementById('yield-report-type').addEventListener('change', () => {
         const qFilter = document.getElementById('quarter-filter-group');
         const reportType = document.getElementById('yield-report-type').value;
@@ -18,6 +19,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('yield-quarter').addEventListener('change', renderYieldReport);
     document.getElementById('yield-process').addEventListener('change', renderYieldReport);
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        const dropdown = document.getElementById('yield-project-dropdown');
+        const options = document.getElementById('yield-project-options');
+        if (dropdown && options && !dropdown.contains(e.target)) {
+            options.style.display = 'none';
+        }
+    });
 });
 
 function populateProjectFilter() {
@@ -28,32 +38,86 @@ function populateProjectFilter() {
         ...fyData.map(d => d.project || 'N/A')
     ])].sort();
     
-    const dropdown = document.getElementById('yield-project');
-    if (!dropdown) return;
+    allYieldProjects = projects;
+    selectedYieldProjects = [...projects]; // Default select all
     
-    const prevVal = dropdown.value;
-    dropdown.innerHTML = '';
+    const btn = document.getElementById('yield-project-btn');
+    const optionsDiv = document.getElementById('yield-project-options');
+    if (!btn || !optionsDiv) return;
     
-    if (projects.length === 0) {
-        const opt = document.createElement('option');
-        opt.value = 'G8X';
-        opt.textContent = 'G8X';
-        dropdown.appendChild(opt);
-        return;
-    }
+    optionsDiv.innerHTML = '';
     
+    // Select All option
+    const selectAllLabel = document.createElement('label');
+    selectAllLabel.className = 'multiselect-item';
+    selectAllLabel.innerHTML = `
+        <input type="checkbox" id="yield-select-all" checked>
+        <span><strong>Select All</strong></span>
+    `;
+    optionsDiv.appendChild(selectAllLabel);
+    
+    // Individual Project options
     projects.forEach(p => {
-        const opt = document.createElement('option');
-        opt.value = p;
-        opt.textContent = p;
-        dropdown.appendChild(opt);
+        const label = document.createElement('label');
+        label.className = 'multiselect-item';
+        label.innerHTML = `
+            <input type="checkbox" value="${p}" class="yield-proj-checkbox" checked>
+            <span>${p}</span>
+        `;
+        optionsDiv.appendChild(label);
     });
     
-    if (projects.includes(prevVal)) {
-        dropdown.value = prevVal;
-    } else {
-        dropdown.value = projects[0];
+    // Toggle options panel visibility
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isHidden = optionsDiv.style.display === 'none' || optionsDiv.style.display === '';
+        optionsDiv.style.display = isHidden ? 'block' : 'none';
+    });
+    
+    const selectAllCheckbox = document.getElementById('yield-select-all');
+    const projCheckboxes = optionsDiv.querySelectorAll('.yield-proj-checkbox');
+    
+    // Select All logic
+    selectAllCheckbox.addEventListener('change', () => {
+        const isChecked = selectAllCheckbox.checked;
+        projCheckboxes.forEach(cb => {
+            cb.checked = isChecked;
+        });
+        updateYieldSelection();
+    });
+    
+    // Individual checkboxes logic
+    projCheckboxes.forEach(cb => {
+        cb.addEventListener('change', () => {
+            const allChecked = Array.from(projCheckboxes).every(c => c.checked);
+            const noneChecked = Array.from(projCheckboxes).every(c => !c.checked);
+            selectAllCheckbox.checked = allChecked;
+            selectAllCheckbox.indeterminate = !allChecked && !noneChecked;
+            updateYieldSelection();
+        });
+    });
+    
+    function updateYieldSelection() {
+        selectedYieldProjects = Array.from(projCheckboxes)
+            .filter(c => c.checked)
+            .map(c => c.value);
+        updateYieldBtnText();
+        renderYieldReport();
     }
+    
+    function updateYieldBtnText() {
+        if (selectedYieldProjects.length === 0) {
+            btn.textContent = 'None Selected';
+        } else if (selectedYieldProjects.length === allYieldProjects.length) {
+            btn.textContent = 'All Projects';
+        } else if (selectedYieldProjects.length <= 2) {
+            btn.textContent = selectedYieldProjects.join(', ');
+        } else {
+            btn.textContent = `${selectedYieldProjects.length} Selected`;
+        }
+    }
+    
+    updateYieldBtnText();
 }
 
 function renderYieldReport() {
@@ -62,7 +126,6 @@ function renderYieldReport() {
         activePlugins.push(ChartDataLabels);
     }
 
-    const project = document.getElementById('yield-project').value;
     const reportType = document.getElementById('yield-report-type').value;
     const process = document.getElementById('yield-process').value;
     const selectedQuarter = document.getElementById('yield-quarter') ? document.getElementById('yield-quarter').value : 'All';
@@ -70,16 +133,18 @@ function renderYieldReport() {
     // Update chart header banner
     document.getElementById('yield-chart-header').textContent = process;
 
-    const fpyData = db.get('yield_fpy_data');
-    const fyData = db.get('yield_fy_data');
-    const targets = db.get('yield_targets');
+    const fpyData = db.get('yield_fpy_data') || [];
+    const fyData = db.get('yield_fy_data') || [];
+    const targets = db.get('yield_targets') || [];
     
-    // Target for this process
-    const targetRow = targets.find(t => t.project === project && t.process.toLowerCase() === process.toLowerCase());
-    const targetVal = targetRow ? Number(targetRow.target) : 90;
+    // Target for this process (averaged across selected projects)
+    const targetRows = targets.filter(t => selectedYieldProjects.includes(t.project) && t.process.toLowerCase() === process.toLowerCase());
+    const targetVal = targetRows.length > 0
+        ? (targetRows.reduce((sum, t) => sum + Number(t.target), 0) / targetRows.length)
+        : 90;
 
     // Filter project and process
-    const filterFn = d => d.project === project && d.process.toLowerCase() === process.toLowerCase();
+    const filterFn = d => selectedYieldProjects.includes(d.project) && d.process.toLowerCase() === process.toLowerCase();
     const fpyFiltered = fpyData.filter(filterFn);
     const fyFiltered = fyData.filter(filterFn);
 

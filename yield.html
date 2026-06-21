@@ -24,10 +24,11 @@
         <main>
             <div class="filters-bar">
                 <div class="filter-group">
-                    <label for="yield-project">Project</label>
-                    <select id="yield-project">
-                        <option value="G8X">G8X</option>
-                    </select>
+                    <label>Project</label>
+                    <div class="multiselect-dropdown" id="yield-project-dropdown">
+                        <button class="multiselect-btn" id="yield-project-btn" type="button">Select Project</button>
+                        <div class="multiselect-options" id="yield-project-options" style="display: none;"></div>
+                    </div>
                 </div>
                 <div class="filter-group">
                     <label for="yield-report-type">Report Type</label>

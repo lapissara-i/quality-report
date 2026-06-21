@@ -2,7 +2,7 @@
 
 // Initialize LocalStorage database if empty or if schema reset is required
 function initDatabase() {
-    const DB_VERSION = 'v5';
+    const DB_VERSION = 'v6';
     if (localStorage.getItem('bmw_db_initialized') !== DB_VERSION) {
         localStorage.clear(); // Safe clear since this is a demonstration local app
         
@@ -37,7 +37,7 @@ const DB_SCHEMAS = {
     ppm_data: ["date", "customer", "code", "defect_qty", "shipped_qty"],
     claims_data: ["date", "project", "claim_type", "location", "qty"],
     scrap_daily: ["date", "process", "erp_code", "defect", "qty"],
-    scrap_inven: ["date", "erp_code", "input_qty"]
+    scrap_inven: ["date", "erp_code", "process", "status", "qty"]
 };
 
 // Compression Maps
@@ -216,7 +216,7 @@ function cleanAndDeduplicateDB() {
                 } else if (key === 'scrap_daily') {
                     dupKey = `${item.date}_${item.process}_${item.erp_code}_${item.defect}_${item.qty}`;
                 } else if (key === 'scrap_inven') {
-                    dupKey = `${item.date}_${item.erp_code}_${item.input_qty}`;
+                    dupKey = `${item.date}_${item.erp_code}_${item.process}_${item.status}_${item.qty}`;
                 } else {
                     dupKey = JSON.stringify(item);
                 }
@@ -321,6 +321,9 @@ function injectLayout(pageTitle = "BMW Portal") {
                     </li>
                     <li class="${filename === 'scrap.html' ? 'active' : ''}">
                         <a href="scrap.html"><i data-lucide="trash-2"></i>Scrap Report</a>
+                    </li>
+                    <li class="${filename === 'top-scrap.html' ? 'active' : ''}">
+                        <a href="top-scrap.html"><i data-lucide="pie-chart"></i>Top Process Scrap</a>
                     </li>
                     <li class="${filename === 'import.html' ? 'active' : ''}">
                         <a href="import.html"><i data-lucide="upload-cloud"></i>Import Portal</a>

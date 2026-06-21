@@ -339,18 +339,26 @@ const MOCK_DATA = {
     ],
     scrap_inven: [
         // 2025 Inputs
-        { date: "2025-01-01", erp_code: "G8X-013-103", input_qty: 1200 },
-        { date: "2025-02-01", erp_code: "G8X-013-103", input_qty: 1300 },
-        { date: "2025-01-01", erp_code: "G8X-011-102", input_qty: 600 },
-        { date: "2025-02-01", erp_code: "G8X-011-102", input_qty: 650 },
-
-        // 2026 Inputs
-        { date: "2026-01-01", erp_code: "G8X-013-103", input_qty: 1400 },
-        { date: "2026-02-01", erp_code: "G8X-013-103", input_qty: 1500 },
-        { date: "2026-03-01", erp_code: "G8X-013-103", input_qty: 1600 },
+        { date: "2025-01-01", erp_code: "G8X-013-103", process: "Layup", status: "OK", qty: 1200 },
+        { date: "2025-01-01", erp_code: "G8X-013-103", process: "Painting", status: "OK", qty: 1100 },
+        { date: "2025-01-10", erp_code: "G8X-013-103", process: "Layup", status: "OK", qty: 1000 },
+        { date: "2025-02-01", erp_code: "G8X-013-103", process: "Layup", status: "OK", qty: 1300 },
+        { date: "2025-01-01", erp_code: "G8X-011-102", process: "Layup", status: "OK", qty: 600 },
+        { date: "2025-02-01", erp_code: "G8X-011-102", process: "Layup", status: "OK", qty: 650 },
         
-        { date: "2026-01-01", erp_code: "G8X-011-102", input_qty: 700 },
-        { date: "2026-02-01", erp_code: "G8X-011-102", input_qty: 750 },
-        { date: "2026-03-01", erp_code: "G8X-011-102", input_qty: 800 }
+        // 2026 Inputs
+        { date: "2026-01-01", erp_code: "G8X-013-103", process: "Layup", status: "OK", qty: 1400 },
+        { date: "2026-01-01", erp_code: "G8X-013-103", process: "Trimming", status: "OK", qty: 1350 },
+        { date: "2026-01-01", erp_code: "G8X-013-103", process: "Painting", status: "OK", qty: 1300 },
+        { date: "2026-01-10", erp_code: "G8X-013-103", process: "Layup", status: "OK", qty: 1400 },
+        { date: "2026-01-12", erp_code: "G8X-013-103", process: "Layup", status: "OK", qty: 1500 },
+        { date: "2026-02-01", erp_code: "G8X-013-103", process: "Layup", status: "OK", qty: 1500 },
+        { date: "2026-03-01", erp_code: "G8X-013-103", process: "Layup", status: "OK", qty: 1600 },
+        
+        { date: "2026-01-01", erp_code: "G8X-011-102", process: "Layup", status: "OK", qty: 700 },
+        { date: "2026-01-01", erp_code: "G8X-011-102", process: "Painting", status: "OK", qty: 680 },
+        { date: "2026-01-10", erp_code: "G8X-011-102", process: "Layup", status: "OK", qty: 700 },
+        { date: "2026-02-01", erp_code: "G8X-011-102", process: "Layup", status: "OK", qty: 750 },
+        { date: "2026-03-01", erp_code: "G8X-011-102", process: "Layup", status: "OK", qty: 800 }
     ]
 };

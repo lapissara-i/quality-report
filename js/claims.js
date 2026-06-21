@@ -1,6 +1,8 @@
 // Claims Report Controller
 let claimTypeChartInstance = null;
 let claimLocationChartInstance = null;
+let selectedClaimsProjects = [];
+let allClaimsProjects = [];
 
 document.addEventListener('DOMContentLoaded', () => {
     injectLayout("Claim Part Returned");
@@ -8,24 +10,101 @@ document.addEventListener('DOMContentLoaded', () => {
     renderClaimsReport();
     
     document.getElementById('claims-quarter').addEventListener('change', renderClaimsReport);
-    document.getElementById('claims-project').addEventListener('change', renderClaimsReport);
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        const dropdown = document.getElementById('claims-project-dropdown');
+        const options = document.getElementById('claims-project-options');
+        if (dropdown && options && !dropdown.contains(e.target)) {
+            options.style.display = 'none';
+        }
+    });
 });
 
 function populateProjectFilter() {
     const claimsData = db.get('claims_data') || [];
     const projects = [...new Set(claimsData.map(d => d.project || 'N/A'))].sort();
     
-    const dropdown = document.getElementById('claims-project');
-    if (!dropdown) return;
+    allClaimsProjects = projects;
+    selectedClaimsProjects = [...projects]; // Default select all
     
-    dropdown.innerHTML = '<option value="All">All Projects</option>';
+    const btn = document.getElementById('claims-project-btn');
+    const optionsDiv = document.getElementById('claims-project-options');
+    if (!btn || !optionsDiv) return;
     
+    optionsDiv.innerHTML = '';
+    
+    // Select All option
+    const selectAllLabel = document.createElement('label');
+    selectAllLabel.className = 'multiselect-item';
+    selectAllLabel.innerHTML = `
+        <input type="checkbox" id="claims-select-all" checked>
+        <span><strong>Select All</strong></span>
+    `;
+    optionsDiv.appendChild(selectAllLabel);
+    
+    // Individual Project options
     projects.forEach(p => {
-        const opt = document.createElement('option');
-        opt.value = p;
-        opt.textContent = p;
-        dropdown.appendChild(opt);
+        const label = document.createElement('label');
+        label.className = 'multiselect-item';
+        label.innerHTML = `
+            <input type="checkbox" value="${p}" class="claims-proj-checkbox" checked>
+            <span>${p}</span>
+        `;
+        optionsDiv.appendChild(label);
     });
+    
+    // Toggle options panel visibility
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isHidden = optionsDiv.style.display === 'none' || optionsDiv.style.display === '';
+        optionsDiv.style.display = isHidden ? 'block' : 'none';
+    });
+    
+    const selectAllCheckbox = document.getElementById('claims-select-all');
+    const projCheckboxes = optionsDiv.querySelectorAll('.claims-proj-checkbox');
+    
+    // Select All logic
+    selectAllCheckbox.addEventListener('change', () => {
+        const isChecked = selectAllCheckbox.checked;
+        projCheckboxes.forEach(cb => {
+            cb.checked = isChecked;
+        });
+        updateClaimsSelection();
+    });
+    
+    // Individual checkboxes logic
+    projCheckboxes.forEach(cb => {
+        cb.addEventListener('change', () => {
+            const allChecked = Array.from(projCheckboxes).every(c => c.checked);
+            const noneChecked = Array.from(projCheckboxes).every(c => !c.checked);
+            selectAllCheckbox.checked = allChecked;
+            selectAllCheckbox.indeterminate = !allChecked && !noneChecked;
+            updateClaimsSelection();
+        });
+    });
+    
+    function updateClaimsSelection() {
+        selectedClaimsProjects = Array.from(projCheckboxes)
+            .filter(c => c.checked)
+            .map(c => c.value);
+        updateClaimsBtnText();
+        renderClaimsReport();
+    }
+    
+    function updateClaimsBtnText() {
+        if (selectedClaimsProjects.length === 0) {
+            btn.textContent = 'None Selected';
+        } else if (selectedClaimsProjects.length === allClaimsProjects.length) {
+            btn.textContent = 'All Projects';
+        } else if (selectedClaimsProjects.length <= 2) {
+            btn.textContent = selectedClaimsProjects.join(', ');
+        } else {
+            btn.textContent = `${selectedClaimsProjects.length} Selected`;
+        }
+    }
+    
+    updateClaimsBtnText();
 }
 
 function renderClaimsReport() {
@@ -35,7 +114,6 @@ function renderClaimsReport() {
     }
 
     const selectedQ = document.getElementById('claims-quarter').value;
-    const selectedProj = document.getElementById('claims-project') ? document.getElementById('claims-project').value : 'All';
     const claimsData = db.get('claims_data') || [];
     
     // Detect years dynamically based on uploaded data (using timezone-immune parsing)
@@ -65,7 +143,12 @@ function renderClaimsReport() {
 
     // Update labels
     const qText = selectedQ === 'All' ? 'All Quarters' : selectedQ;
-    const projText = selectedProj === 'All' ? '' : ` (${selectedProj})`;
+    let projText = '';
+    if (selectedClaimsProjects.length === 0) {
+        projText = ' (None)';
+    } else if (selectedClaimsProjects.length !== allClaimsProjects.length) {
+        projText = ` (${selectedClaimsProjects.join(', ')})`;
+    }
     document.getElementById('title-type-quarter').textContent = `Total for ${qText}${projText}`;
     document.getElementById('title-location-quarter').textContent = `Location distribution with % labels for ${qText}${projText}`;
 
@@ -87,12 +170,12 @@ function renderClaimsReport() {
     // Filter records
     const records = claimsData.filter(d => {
         const matchQ = checkQuarter(d.date, selectedQ);
-        const matchP = selectedProj === 'All' || (d.project || 'N/A') === selectedProj;
+        const matchP = selectedClaimsProjects.includes(d.project || 'N/A');
         return matchQ && matchP;
     });
 
-    // Get unique types and locations for the selected project
-    const projectRecords = claimsData.filter(d => selectedProj === 'All' || (d.project || 'N/A') === selectedProj);
+    // Get unique types and locations for the selected projects
+    const projectRecords = claimsData.filter(d => selectedClaimsProjects.includes(d.project || 'N/A'));
     const claimTypes = [...new Set(projectRecords.map(d => d.claim_type || 'N/A'))].sort();
     const locations = [...new Set(projectRecords.map(d => d.location || 'N/A'))].sort();
 
@@ -333,7 +416,7 @@ function renderClaimsReport() {
     
     // Aggregate by date, project, claim_type, location (using timezone-immune parsing)
     const dateMap = {};
-    const tableFiltered = claimsData.filter(row => selectedProj === 'All' || (row.project || 'N/A') === selectedProj);
+    const tableFiltered = claimsData.filter(row => selectedClaimsProjects.includes(row.project || 'N/A'));
     
     tableFiltered.forEach(row => {
         if (!row.date) return;
